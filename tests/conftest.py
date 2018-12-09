@@ -23,7 +23,7 @@ def _get_parent_label(parent):
     else:
         label = "<unknown>"
 
-    label = label.replace('Test', '').replace('test_', '')
+    label = label.replace('test_', '')
 
     return label
 

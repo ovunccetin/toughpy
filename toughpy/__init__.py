@@ -1,4 +1,4 @@
-from .retry import Retry
+from .retry import Retry, RetryError
 from .duration import Duration, TimeUnit
 import toughpy.duration as duration
 import toughpy.utils as u

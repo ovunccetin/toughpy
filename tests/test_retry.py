@@ -15,11 +15,11 @@ def Retry(name='test_retry',
           retry_on_result=UNDEFINED,
           backoff=UNDEFINED,
           max_delay=None,
-          wrap_error=False):
+          wrap_result=False):
     if backoff is UNDEFINED:
         backoff = 0
 
-    return tp.Retry(name, max_attempts, retry_on_error, retry_on_result, backoff, max_delay, wrap_error)
+    return tp.Retry(name, max_attempts, retry_on_error, retry_on_result, backoff, max_delay, wrap_result)
 
 
 # noinspection PyAttributeOutsideInit,PyUnusedLocal
@@ -216,5 +216,35 @@ class TestBackoff(BaseRetryTest):
     def exec_and_timeit(self, retry):
         return timeit(lambda: retry.invoke(self.fail))
 
-    def test_raise(self):
-        Retry(wrap_error=True).invoke(self.fail_with(ConnectionError))
+
+class TestInvocationResult(BaseRetryTest):
+    def test_unwrapped_result(self):
+        assert Retry().invoke(self.return_('ok')) == 'ok'
+
+    def test_unwrapped_error(self):
+        with pytest.raises(ConnectionError):
+            Retry().invoke(self.fail_with(ConnectionError))
+
+    def test_wrapped_result(self):
+        result = Retry(wrap_result=True).invoke(self.return_('ok'))
+
+        assert result.successful is True
+        assert result.failure is False
+        assert 'ok' == result.get()
+        assert 1 == result.last_attempt_number
+        assert_close_to(result.elapsed_millis(), expected=0)
+
+    def test_wrapped_error(self):
+        retry = Retry(wrap_result=True, max_attempts=3, backoff=0.1)
+        result = retry.invoke(self.fail_with(ConnectionError))
+
+        assert result.successful is False
+        assert result.failure is True
+        assert 3 == result.last_attempt_number
+        assert_close_to(result.elapsed_millis(), expected=200, delta=100)
+
+        with pytest.raises(ConnectionError):
+            result.get()
+
+        with pytest.raises(tp.RetryError):
+            result.get(wrap_error=True)

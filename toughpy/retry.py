@@ -37,7 +37,6 @@ class Retry:
                  retry_on_result=UNDEFINED,
                  backoff=None,
                  max_delay=None,
-                 wrap_error=False,
                  wrap_result=False):
         self._name = name
         self._max_attempts = Retry._get_max_attempts(max_attempts)
@@ -45,7 +44,6 @@ class Retry:
         self._retry_on_result = Retry._get_retry_on_result_fn(retry_on_result)
         self._backoff = Retry._get_backoff_fn(backoff)
         self._max_delay = max_delay
-        self._wrap_error = wrap_error
         self._wrap_result = wrap_result
 
     @staticmethod
@@ -111,12 +109,12 @@ class Retry:
             self._exec_backoff(attempt)
             attempt = Retry._try(fn, attempt_number + 1, *args, **kwargs)
 
-        elapsed_millis = timer.stop().elapsed_millis()
+        elapsed_time = timer.stop().elapsed_time()
 
         if self._wrap_result:
-            return RetryResult(self.name, attempt, elapsed_millis)
+            return RetryResult(self.name, attempt, elapsed_time)
         else:
-            return attempt.get(self._name, self._wrap_error)
+            return attempt.get(self._name)
 
     def _exec_backoff(self, attempt):
         delay = self._backoff(attempt)
@@ -174,7 +172,7 @@ class _Attempt:
         if self.has_error:
             e_type = self.result[0]
             e_trace = self.result[2]
-            return '{0}: {1}\n{2}'.format(e_type.__name__, str(self.error),"".join(traceback.format_tb(e_trace)))
+            return '{0}: {1}\n{2}'.format(e_type.__name__, str(self.error), "".join(traceback.format_tb(e_trace)))
         else:
             return 'Result: {0}'.format(self.result)
 
@@ -193,7 +191,6 @@ class RetryError(Exception):
         )
 
 
-
 class RetryResult:
     def __init__(self, name, last_attempt, elapsed_time):
         self._name = name
@@ -203,21 +200,23 @@ class RetryResult:
     def get(self, wrap_error=False):
         return self._last_attempt.get(self._name, wrap_error)
 
-    @property
     def elapsed_time(self):
         return self._elapsed_time
 
+    def elapsed_millis(self):
+        return self.elapsed_time().to_millis()
+
     @property
-    def is_failure(self):
+    def failure(self):
         return self._last_attempt.has_error
 
     @property
-    def is_successful(self):
+    def successful(self):
         return not self._last_attempt.has_error
 
     @property
     def last_attempt_number(self):
-        return not self._last_attempt.attempt_number
+        return self._last_attempt.attempt_number
 
 
 # noinspection PyUnusedLocal

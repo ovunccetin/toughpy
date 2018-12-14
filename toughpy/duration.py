@@ -36,7 +36,7 @@ class Duration:
         return self._unit.to_days(self._length)
 
     def __str__(self):
-        return '%s %ss' % (self.length, self.unit.__name__)
+        return '%s %s' % (self.length, self.unit.__name__)
 
 
 class TimeUnit:

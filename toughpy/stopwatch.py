@@ -36,6 +36,7 @@ class Stopwatch:
             raise StateError('Stopwatch `%s` is already stopped.')
 
         self._elapsed_micros += end - self._start_time
+        self._running = False
 
         return self
 

@@ -22,3 +22,8 @@ def _are_all_exception_types(obj):
 
 def is_number(obj):
     return isinstance(obj, _numeric_types)
+
+
+class StateError(ValueError):
+    """An analogue to Java's IllegalStateException"""
+    pass

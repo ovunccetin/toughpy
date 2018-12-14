@@ -1,13 +1,15 @@
 import toughpy.utils as util
 from toughpy.utils import UNDEFINED
+from toughpy.stopwatch import Stopwatch
 import six
 import sys
 import time
 import random
+import traceback
 
-__msg_invalid_max_attempts = '`%s` is not a valid value for `max_attempts`. It should be an integer greater than 0.'
+_msg_invalid_max_attempts = '`%s` is not a valid value for `max_attempts`. It should be an integer greater than 0.'
 
-__msg_invalid_retry_on_error = '''A value of `%s` is not valid for `retry_on_error`. It should be one of the followings:
+_msg_invalid_retry_on_error = '''A value of `%s` is not valid for `retry_on_error`. It should be one of the followings:
  - Missing or None to set to the default value (i.e. retry on any error)
  - An error type, e.g. ConnectionError
  - A tuple of error types, e.g. (ConnectionError, TimeoutError)
@@ -16,7 +18,7 @@ __msg_invalid_retry_on_error = '''A value of `%s` is not valid for `retry_on_err
  - A callable (e.g. a function) taking the result of the previous call and returning a boolean.
 '''
 
-__msg_invalid_backoff = '''A value of `%s` is not valid for `backoff`. It should be on of the followings:
+_msg_invalid_backoff = '''A value of `%s` is not valid for `backoff`. It should be on of the followings:
  - Missing or None to set the default delay.
  - An integer to put a fixed delay in seconds (e.g. 1 means 1 second).
  - A float to put a fixed delay in seconds (e.g. 1.3 means 1 second and 300 milliseconds)
@@ -24,86 +26,122 @@ __msg_invalid_backoff = '''A value of `%s` is not valid for `backoff`. It should
 '''
 
 
-# Built-in Retry Conditions
-
-def _retry_on_any_error(error):
-    return isinstance(error, BaseException)
-
-
-def _retry_on_errors(retriable_types):
-    def _check_error_type(error):
-        return isinstance(error, retriable_types)
-
-    return _check_error_type
-
-
-class Retrier:
+class Retry:
     DEFAULT_MAX_ATTEMPTS = 3
-    DEFAULT_RETRY_ON_ERROR = _retry_on_any_error
     DEFAULT_BACKOFF = 0.5
 
     def __init__(self,
-                 fn=None,
+                 name,
                  max_attempts=None,
                  retry_on_error=None,
                  retry_on_result=UNDEFINED,
-                 backoff=None):
-        self._fn = fn
-        self._max_attempts = _validate_max_attempts(max_attempts)
-        self._retry_on_error = _validate_retry_on_error(retry_on_error)
-        self._retry_on_result = retry_on_result
-        self._backoff = _validate_backoff(backoff)
+                 backoff=None,
+                 max_delay=None,
+                 wrap_error=False,
+                 wrap_result=False):
+        self._name = name
+        self._max_attempts = Retry._get_max_attempts(max_attempts)
+        self._retry_on_error = Retry._get_retry_on_error_fn(retry_on_error)
+        self._retry_on_result = Retry._get_retry_on_result_fn(retry_on_result)
+        self._backoff = Retry._get_backoff_fn(backoff)
+        self._max_delay = max_delay
+        self._wrap_error = wrap_error
+        self._wrap_result = wrap_result
 
-    def invoke(self, fn=None, *args, **kwargs):
-        fn = self._get_fn(fn)
-        attempt = Retrier._try(fn, attempt=1, *args, **kwargs)
+    @staticmethod
+    def _get_max_attempts(given):
+        if given is None:
+            result = Retry.DEFAULT_MAX_ATTEMPTS
+        elif isinstance(given, int) and given > 0:
+            result = given
+        else:
+            raise ValueError(_msg_invalid_max_attempts % given)
+
+        return result
+
+    @staticmethod
+    def _get_retry_on_error_fn(given):
+        if given is None:
+            result = _predicates.on_any_error
+        elif util.is_exception_type(given) or util.is_tuple_of_exception_types(given):
+            result = _predicates.on_errors(given)
+        elif util.is_list_or_set_of_exception_types(given):
+            result = _predicates.on_errors(tuple(given))
+        elif callable(given):
+            result = given
+        else:
+            raise ValueError(_msg_invalid_retry_on_error % type(given).__name__)
+
+        return result
+
+    @staticmethod
+    def _get_retry_on_result_fn(given):
+        if given is UNDEFINED:
+            result = _predicates.never
+        elif callable(given):
+            result = given
+        else:
+            result = _predicates.on_result(given)
+
+        return result
+
+    @staticmethod
+    def _get_backoff_fn(given):
+        if given is None:
+            result = backoffs.fixed_delay(Retry.DEFAULT_BACKOFF)
+        elif util.is_number(given):
+            result = backoffs.fixed_delay(given)
+        elif callable(given):
+            result = given
+        else:
+            raise ValueError(_msg_invalid_backoff % type(given).__name__)
+
+        return result
+
+    @property
+    def name(self):
+        return self._name
+
+    def invoke(self, fn, *args, **kwargs):
+        timer = Stopwatch.create_started()
+        attempt = Retry._try(fn, attempt=1, *args, **kwargs)
 
         while self._should_retry(attempt):
             attempt_number = attempt.attempt_number
             self._exec_backoff(attempt)
-            attempt = Retrier._try(fn, attempt_number + 1, *args, **kwargs)
+            attempt = Retry._try(fn, attempt_number + 1, *args, **kwargs)
 
-        return attempt.get()
+        elapsed_millis = timer.stop().elapsed_millis()
+
+        if self._wrap_result:
+            return RetryResult(self.name, attempt, elapsed_millis)
+        else:
+            return attempt.get(self._name, self._wrap_error)
 
     def _exec_backoff(self, attempt):
-        backoff = self._backoff(attempt)
-        if backoff > 0:
-            time.sleep(backoff)
+        delay = self._backoff(attempt)
+        max_delay = self._max_delay
 
-    def _get_fn(self, given):
-        if given is not None:
-            fn = given
-        else:
-            fn = self._fn
+        if max_delay and delay > max_delay:
+            delay = max_delay
 
-        if fn:
-            return fn
-        else:
-            raise ValueError('No function/method found to be invoked')
+        if delay > 0:
+            time.sleep(delay)
 
     @staticmethod
     def _try(fn, attempt, *args, **kwargs):
         try:
             result = fn(*args, **kwargs)
-            return Attempt(result, attempt, has_error=False)
+            return _Attempt(result, attempt, has_error=False)
         except:
             error = sys.exc_info()
-            return Attempt(error, attempt, has_error=True)
+            return _Attempt(error, attempt, has_error=True)
 
     def _should_retry(self, attempt):
         if attempt.has_error:
             should_retry = self._retry_on_error(attempt.error)
         else:
-            ror = self._retry_on_result
-            result = attempt.result
-            if ror is UNDEFINED:
-                should_retry = False
-            elif ror is None:
-                should_retry = result is None
-            elif callable(ror):
-                should_retry = ror(result)
-            else:
-                should_retry = ror == result
+            should_retry = self._retry_on_result(attempt.result)
 
         if should_retry:
             return self._max_attempts > attempt.attempt_number
@@ -111,80 +149,163 @@ class Retrier:
             return False
 
 
-class Attempt:
+class _Attempt:
     def __init__(self, result, attempt_number, has_error):
         self.result = result
         self.attempt_number = attempt_number
         self.has_error = has_error
 
-    def get(self):
+    def get(self, retry_name, wrap_error=False):
         if not self.has_error:
             return self.result
         else:
             res = self.result
-            six.reraise(res[0], res[1], res[2])
+            if wrap_error:
+                raise RetryError(retry_name, self)
+            else:
+                six.reraise(res[0], res[1], res[2])
 
     @property
     def error(self):
         if self.has_error:
             return self.result[1]
 
-
-def _validate_max_attempts(given):
-    if given is None:
-        result = Retrier.DEFAULT_MAX_ATTEMPTS
-    elif isinstance(given, int) and given > 0:
-        result = given
-    else:
-        raise ValueError(__msg_invalid_max_attempts % given)
-
-    return result
-
-
-def _validate_retry_on_error(given):
-    if given is None:
-        result = Retrier.DEFAULT_RETRY_ON_ERROR
-    elif util.is_exception_type(given) or util.is_tuple_of_exception_types(given):
-        result = _retry_on_errors(given)
-    elif util.is_list_or_set_of_exception_types(given):
-        result = _retry_on_errors(tuple(given))
-    elif callable(given):
-        result = given
-    else:
-        raise ValueError(__msg_invalid_retry_on_error % type(given).__name__)
-
-    return result
-
-
-def _validate_backoff(given):
-    if given is None:
-        result = fixed_delay(Retrier.DEFAULT_BACKOFF)
-    elif util.is_number(given):
-        if given == 0:
-            result = no_delay
+    def __repr__(self):
+        if self.has_error:
+            e_type = self.result[0]
+            e_trace = self.result[2]
+            return '{0}: {1}\n{2}'.format(e_type.__name__, str(self.error),"".join(traceback.format_tb(e_trace)))
         else:
-            result = fixed_delay(given)
-    elif callable(given):
-        result = given
-    else:
-        raise ValueError(__msg_invalid_backoff % type(given).__name__)
-
-    return result
+            return 'Result: {0}'.format(self.result)
 
 
-# <Backoff Functions>
-def no_delay(prev_attempt): return 0
+class RetryError(Exception):
+
+    def __init__(self, retry_name, last_attempt):
+        self.retry_name = retry_name
+        self.last_attempt = last_attempt
+
+    def __str__(self):
+        return 'Retry `{0}` failed after {1} attempts! The last failure:\n{2}'.format(
+            self.retry_name,
+            self.last_attempt.attempt_number,
+            self.last_attempt
+        )
 
 
-def fixed_delay(delay):
-    def _get(prev_attempt): return delay
 
-    return _get
+class RetryResult:
+    def __init__(self, name, last_attempt, elapsed_time):
+        self._name = name
+        self._last_attempt = last_attempt
+        self._elapsed_time = elapsed_time
+
+    def get(self, wrap_error=False):
+        return self._last_attempt.get(self._name, wrap_error)
+
+    @property
+    def elapsed_time(self):
+        return self._elapsed_time
+
+    @property
+    def is_failure(self):
+        return self._last_attempt.has_error
+
+    @property
+    def is_successful(self):
+        return not self._last_attempt.has_error
+
+    @property
+    def last_attempt_number(self):
+        return not self._last_attempt.attempt_number
 
 
-def random_delay(minimum, maximum):
-    def _get(prev_attempt):
-        return random.randint(minimum, maximum)
+# noinspection PyUnusedLocal
+class _predicates:
 
-    return _get
-# </Backoff Functions>
+    @staticmethod
+    def on_any_error(error):
+        return isinstance(error, BaseException)
+
+    @staticmethod
+    def on_errors(retriable_types):
+        def _check_error_type(error):
+            return isinstance(error, retriable_types)
+
+        return _check_error_type
+
+    @staticmethod
+    def on_result(retriable):
+        def _check_result(result):
+            if retriable is None:
+                return result is None
+            else:
+                return retriable == result
+
+        return _check_result
+
+    @staticmethod
+    def never(result):
+        return False
+
+
+# noinspection PyUnusedLocal
+class backoffs:
+    @staticmethod
+    def fixed_delay(delay):
+        def _get(prev_attempt=None):
+            return delay
+
+        return _get
+
+    @staticmethod
+    def random_delay(min_sec, max_sec):
+        def _get(prev_attempt=None):
+            lb = int(min_sec * 1000)
+            ub = int(max_sec * 1000)
+
+            ms = random.randint(lb, ub)
+            return float(ms) / 1000
+
+        return _get
+
+    @staticmethod
+    def linear_delay(initial, accrual, rnd=None):
+        rnd_fn = backoffs._get_rnd_fn(rnd)
+
+        def _get(prev_attempt):
+            attempt_number = backoffs._get_attempt_number(prev_attempt)
+
+            return initial + accrual * (attempt_number - 1) + rnd_fn()
+
+        return _get
+
+    @staticmethod
+    def exponential_delay(initial, exp_base=2, rnd=None):
+        rnd_fn = backoffs._get_rnd_fn(rnd)
+
+        def _get(prev_attempt):
+            attempt_number = backoffs._get_attempt_number(prev_attempt)
+            return initial * exp_base ** (attempt_number - 1) + rnd_fn()
+
+        return _get
+
+    @staticmethod
+    def _get_rnd_fn(rnd):
+        if callable(rnd):
+            fn = rnd
+        elif isinstance(rnd, tuple):
+            fn = backoffs.random_delay(rnd[0], rnd[1])
+        else:
+            fn = lambda: 0
+
+        return fn
+
+    @staticmethod
+    def _get_attempt_number(attempt):
+        if isinstance(attempt, _Attempt):
+            return attempt.attempt_number
+        elif isinstance(attempt, int):
+            return attempt
+        else:
+            raise ValueError('Invalid attempt: %s' % str(attempt))

@@ -1,8 +1,8 @@
 import toughpy as tp
-from tests.testutil import silence, timeit, assert_close_to
 import pytest
 import contextlib as clib
 from toughpy.utils import UNDEFINED
+from tests.testutil import silence, timeit, assert_close_to
 
 DEFAULT_MAX_ATTEMPTS = tp.Retry.DEFAULT_MAX_ATTEMPTS
 DEFAULT_BACKOFF = tp.Retry.DEFAULT_BACKOFF
@@ -178,37 +178,37 @@ class TestBackoff(BaseRetryTest):
         assert_close_to(time_elapsed, expected=0.25 * 2)
 
     def test_random_delay(self):
-        retry = Retry(backoff=tp.random_delay(0.2, 0.3))
+        retry = Retry(backoff=tp.backoff.random(0.2, 0.3))
         time_elapsed = self.exec_and_timeit(retry)
 
         assert_close_to(time_elapsed, expected=0.2 * 2, delta=0.2)
 
     def test_linear_delay(self):
-        retry = Retry(max_attempts=4, backoff=tp.linear_delay(initial=0.1, accrual=0.2))
+        retry = Retry(max_attempts=4, backoff=tp.backoff.linear(initial=0.1, accrual=0.2))
         time_elapsed = self.exec_and_timeit(retry)
 
         assert_close_to(time_elapsed, expected=0.1 + 0.3 + 0.5)
 
     def test_linear_delay_with_random_addition(self):
-        retry = Retry(max_attempts=4, backoff=tp.linear_delay(initial=0.1, accrual=0.2, rnd=(0.01, 0.02)))
+        retry = Retry(max_attempts=4, backoff=tp.backoff.linear(initial=0.1, accrual=0.2, rnd=(0.01, 0.02)))
         time_elapsed = self.exec_and_timeit(retry)
 
         assert_close_to(time_elapsed, expected=0.1 + 0.3 + 0.5 + 3 * 0.01)
 
     def test_exponential_delay(self):
-        retry = Retry(max_attempts=5, backoff=tp.exponential_delay(initial=0.05))
+        retry = Retry(max_attempts=5, backoff=tp.backoff.exponential(initial=0.05))
         time_elapsed = self.exec_and_timeit(retry)
 
         assert_close_to(time_elapsed, expected=0.05 + 0.1 + 0.2 + 0.4)
 
     def test_exponential_delay_with_base(self):
-        retry = Retry(max_attempts=5, backoff=tp.exponential_delay(initial=0.01, exp_base=3))
+        retry = Retry(max_attempts=5, backoff=tp.backoff.exponential(initial=0.01, exp_base=3))
         time_elapsed = self.exec_and_timeit(retry)
 
         assert_close_to(time_elapsed, expected=0.01 + 0.03 + 0.09 + 0.25)
 
     def test_exponential_delay_with_random_addition(self):
-        retry = Retry(max_attempts=5, backoff=tp.exponential_delay(initial=0.05, rnd=(0.01, 0.02)))
+        retry = Retry(max_attempts=5, backoff=tp.backoff.exponential(initial=0.05, rnd=(0.01, 0.02)))
         time_elapsed = self.exec_and_timeit(retry)
 
         assert_close_to(time_elapsed, expected=0.05 + 0.1 + 0.2 + 0.4 + 4 * 0.01)

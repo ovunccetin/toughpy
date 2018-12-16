@@ -1,11 +1,11 @@
 import toughpy.utils as util
-from toughpy.utils import UNDEFINED
-from toughpy.stopwatch import Stopwatch
-from toughpy.commons import predicates
+from .utils import UNDEFINED
+from .stopwatch import Stopwatch
+from .commons import predicates
+from .commons import backoff
 import six
 import sys
 import time
-import random
 import traceback
 
 _msg_invalid_max_attempts = '`%s` is not a valid value for `max_attempts`. It should be an integer greater than 0.'
@@ -87,9 +87,9 @@ class Retry:
     @staticmethod
     def _get_backoff_fn(given):
         if given is None:
-            result = backoffs.fixed_delay(Retry.DEFAULT_BACKOFF)
+            result = backoff.fixed(Retry.DEFAULT_BACKOFF)
         elif util.is_number(given):
-            result = backoffs.fixed_delay(given)
+            result = backoff.fixed(given)
         elif callable(given):
             result = given
         else:
@@ -118,7 +118,7 @@ class Retry:
             return attempt.get(self._name)
 
     def _exec_backoff(self, attempt):
-        delay = self._backoff(attempt)
+        delay = self._backoff(attempt=attempt.attempt_number)
         max_delay = self._max_delay
 
         if max_delay and delay > max_delay:
@@ -216,65 +216,3 @@ class RetryResult:
     @property
     def is_success(self):
         return not self._last_attempt.has_error
-
-
-# noinspection PyUnusedLocal
-class backoffs:
-    @staticmethod
-    def fixed_delay(delay):
-        def _get(prev_attempt=None):
-            return delay
-
-        return _get
-
-    @staticmethod
-    def random_delay(min_sec, max_sec):
-        def _get(prev_attempt=None):
-            lb = int(min_sec * 1000)
-            ub = int(max_sec * 1000)
-
-            ms = random.randint(lb, ub)
-            return float(ms) / 1000
-
-        return _get
-
-    @staticmethod
-    def linear_delay(initial, accrual, rnd=None):
-        rnd_fn = backoffs._get_rnd_fn(rnd)
-
-        def _get(prev_attempt):
-            attempt_number = backoffs._get_attempt_number(prev_attempt)
-
-            return initial + accrual * (attempt_number - 1) + rnd_fn()
-
-        return _get
-
-    @staticmethod
-    def exponential_delay(initial, exp_base=2, rnd=None):
-        rnd_fn = backoffs._get_rnd_fn(rnd)
-
-        def _get(prev_attempt):
-            attempt_number = backoffs._get_attempt_number(prev_attempt)
-            return initial * exp_base ** (attempt_number - 1) + rnd_fn()
-
-        return _get
-
-    @staticmethod
-    def _get_rnd_fn(rnd):
-        if callable(rnd):
-            fn = rnd
-        elif isinstance(rnd, tuple):
-            fn = backoffs.random_delay(rnd[0], rnd[1])
-        else:
-            fn = lambda: 0
-
-        return fn
-
-    @staticmethod
-    def _get_attempt_number(attempt):
-        if isinstance(attempt, _Attempt):
-            return attempt.attempt_number
-        elif isinstance(attempt, int):
-            return attempt
-        else:
-            raise ValueError('Invalid attempt: %s' % str(attempt))

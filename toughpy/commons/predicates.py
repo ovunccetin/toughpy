@@ -20,5 +20,13 @@ def on_value(expected_value):
 
 
 # noinspection PyUnusedLocal
-def never(result):
+def never(value):
     return False
+
+
+__all__ = [
+    'on_any_error',
+    'on_errors',
+    'on_value',
+    'never'
+]

@@ -200,23 +200,21 @@ class RetryResult:
     def get(self, wrap_error=False):
         return self._last_attempt.get(self._name, wrap_error)
 
+    @property
     def elapsed_time(self):
         return self._elapsed_time
-
-    def elapsed_millis(self):
-        return self.elapsed_time().to_millis()
-
-    @property
-    def failure(self):
-        return self._last_attempt.has_error
-
-    @property
-    def successful(self):
-        return not self._last_attempt.has_error
 
     @property
     def last_attempt_number(self):
         return self._last_attempt.attempt_number
+
+    @property
+    def is_failure(self):
+        return self._last_attempt.has_error
+
+    @property
+    def is_success(self):
+        return not self._last_attempt.has_error
 
 
 # noinspection PyUnusedLocal

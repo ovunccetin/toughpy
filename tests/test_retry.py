@@ -228,20 +228,20 @@ class TestExecutionResult(BaseRetryTest):
     def test_wrapped_result(self):
         result = Retry(wrap_result=True).execute(self.return_('ok'))
 
-        assert result.successful is True
-        assert result.failure is False
+        assert result.is_success is True
+        assert result.is_failure is False
         assert 'ok' == result.get()
         assert 1 == result.last_attempt_number
-        assert_close_to(result.elapsed_millis(), expected=0)
+        assert_close_to(result.elapsed_time.to_millis(), expected=0)
 
     def test_wrapped_error(self):
         retry = Retry(wrap_result=True, max_attempts=3, backoff=0.1)
         result = retry.execute(self.fail_with(ConnectionError))
 
-        assert result.successful is False
-        assert result.failure is True
+        assert result.is_success is False
+        assert result.is_failure is True
         assert 3 == result.last_attempt_number
-        assert_close_to(result.elapsed_millis(), expected=200, delta=100)
+        assert_close_to(result.elapsed_time.to_millis(), expected=200, delta=100)
 
         with pytest.raises(ConnectionError):
             result.get()

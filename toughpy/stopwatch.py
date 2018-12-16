@@ -5,6 +5,7 @@ from .duration import *
 _1M = 1000000
 
 # TODO count the number of start-stops, add metrics like total_time, count, max_time, min_time, average_time
+# TODO write a unit test for stopwatch
 
 class Stopwatch:
     @classmethod

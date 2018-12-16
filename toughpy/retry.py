@@ -100,7 +100,7 @@ class Retry:
     def name(self):
         return self._name
 
-    def invoke(self, fn, *args, **kwargs):
+    def execute(self, fn, *args, **kwargs):
         timer = Stopwatch.create_started()
         attempt = Retry._try(fn, attempt=1, *args, **kwargs)
 

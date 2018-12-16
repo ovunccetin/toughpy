@@ -52,11 +52,3 @@ def _get_rnd_fn(rnd):
         fn = lambda: 0
 
     return fn
-
-
-__all__ = [
-    'fixed',
-    'random',
-    'linear',
-    'exponential'
-]

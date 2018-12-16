@@ -1,6 +1,7 @@
 import toughpy.utils as util
 from toughpy.utils import UNDEFINED
 from toughpy.stopwatch import Stopwatch
+from toughpy.commons import predicates
 import six
 import sys
 import time
@@ -60,11 +61,11 @@ class Retry:
     @staticmethod
     def _get_retry_on_error_fn(given):
         if given is None:
-            result = _predicates.on_any_error
+            result = predicates.on_any_error
         elif util.is_exception_type(given) or util.is_tuple_of_exception_types(given):
-            result = _predicates.on_errors(given)
+            result = predicates.on_errors(given)
         elif util.is_list_or_set_of_exception_types(given):
-            result = _predicates.on_errors(tuple(given))
+            result = predicates.on_errors(tuple(given))
         elif callable(given):
             result = given
         else:
@@ -75,11 +76,11 @@ class Retry:
     @staticmethod
     def _get_retry_on_result_fn(given):
         if given is UNDEFINED:
-            result = _predicates.never
+            result = predicates.never
         elif callable(given):
             result = given
         else:
-            result = _predicates.on_result(given)
+            result = predicates.on_value(given)
 
         return result
 
@@ -215,35 +216,6 @@ class RetryResult:
     @property
     def is_success(self):
         return not self._last_attempt.has_error
-
-
-# noinspection PyUnusedLocal
-class _predicates:
-
-    @staticmethod
-    def on_any_error(error):
-        return isinstance(error, BaseException)
-
-    @staticmethod
-    def on_errors(retriable_types):
-        def _check_error_type(error):
-            return isinstance(error, retriable_types)
-
-        return _check_error_type
-
-    @staticmethod
-    def on_result(retriable):
-        def _check_result(result):
-            if retriable is None:
-                return result is None
-            else:
-                return retriable == result
-
-        return _check_result
-
-    @staticmethod
-    def never(result):
-        return False
 
 
 # noinspection PyUnusedLocal

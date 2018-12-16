@@ -1,15 +1,9 @@
-from .retry import Retry, RetryError
-from .duration import Duration, TimeUnit
+import toughpy.retry as retry
+from .retry import Retry
 from .commons import predicates
-import toughpy.duration as duration
+from .commons import duration
+from .commons.duration import *
 
 random_delay = retry.backoffs.random_delay
 linear_delay = retry.backoffs.linear_delay
 exponential_delay = retry.backoffs.exponential_delay
-
-microseconds = duration.microseconds
-milliseconds = duration.milliseconds
-seconds = duration.seconds
-minutes = duration.minutes
-hours = duration.hours
-days = duration.days

@@ -1,8 +1,10 @@
 import time
-from toughpy.utils import StateError
-from .duration import *
+from .utils import StateError
+# from toughpy import Duration, duration
+from .commons.duration import microseconds, Duration
 
 _1M = 1000000
+
 
 # TODO count the number of start-stops, add metrics like total_time, count, max_time, min_time, average_time
 # TODO write a unit test for stopwatch

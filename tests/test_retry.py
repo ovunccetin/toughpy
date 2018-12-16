@@ -246,5 +246,5 @@ class TestExecutionResult(BaseRetryTest):
         with pytest.raises(ConnectionError):
             result.get()
 
-        with pytest.raises(tp.RetryError):
+        with pytest.raises(tp.retry.RetryError):
             result.get(wrap_error=True)

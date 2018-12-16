@@ -2,7 +2,7 @@ import toughpy.utils as util
 from .utils import UNDEFINED
 from .stopwatch import Stopwatch
 from .commons import predicates
-from .commons import backoff
+from .commons.backoff import fixed as fixed_backoff
 import six
 import sys
 import time
@@ -87,9 +87,9 @@ class Retry:
     @staticmethod
     def _get_backoff_fn(given):
         if given is None:
-            result = backoff.fixed(Retry.DEFAULT_BACKOFF)
+            result = fixed_backoff(Retry.DEFAULT_BACKOFF)
         elif util.is_number(given):
-            result = backoff.fixed(given)
+            result = fixed_backoff(given)
         elif callable(given):
             result = given
         else:

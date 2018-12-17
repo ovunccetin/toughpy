@@ -15,11 +15,13 @@ def Retry(name='test_retry',
           retry_on_result=UNDEFINED,
           backoff=UNDEFINED,
           max_delay=None,
-          wrap_result=False):
+          wrap_error=False,
+          error_on_result=None):
     if backoff is UNDEFINED:
         backoff = 0
 
-    return tp.Retry(name, max_attempts, retry_on_error, retry_on_result, backoff, max_delay, wrap_result)
+    return tp.Retry(name, max_attempts, retry_on_error, retry_on_result,
+                    backoff, max_delay, wrap_error, error_on_result)
 
 
 # noinspection PyAttributeOutsideInit,PyUnusedLocal
@@ -218,33 +220,20 @@ class TestBackoff(BaseRetryTest):
 
 
 class TestExecutionResult(BaseRetryTest):
-    def test_unwrapped_result(self):
+    def test_returning_result(self):
         assert Retry().execute(self.return_('ok')) == 'ok'
 
-    def test_unwrapped_error(self):
+    def test_raising_original_error(self):
         with pytest.raises(ConnectionError):
             Retry().execute(self.fail_with(ConnectionError))
 
-    def test_wrapped_result(self):
-        result = Retry(wrap_result=True).execute(self.return_('ok'))
+    def test_raising_wrapped_error(self):
+        with pytest.raises(tp.RetryError):
+            Retry(wrap_error=True).execute(self.fail_with(ConnectionError))
 
-        assert result.is_success is True
-        assert result.is_failure is False
-        assert 'ok' == result.get()
-        assert 1 == result.last_attempt_number
-        assert_close_to(result.elapsed_time.to_millis(), expected=0)
+    def test_returning_bad_result(self):
+        assert Retry(retry_on_result=0).execute(self.return_(0)) == 0
 
-    def test_wrapped_error(self):
-        retry = Retry(wrap_result=True, max_attempts=3, backoff=0.1)
-        result = retry.execute(self.fail_with(ConnectionError))
-
-        assert result.is_success is False
-        assert result.is_failure is True
-        assert 3 == result.last_attempt_number
-        assert_close_to(result.elapsed_time.to_millis(), expected=200, delta=100)
-
-        with pytest.raises(ConnectionError):
-            result.get()
-
-        with pytest.raises(tp.retry.RetryError):
-            result.get(wrap_error=True)
+    def test_raising_error_on_bad_result(self):
+        with pytest.raises(tp.RetryError):
+            Retry(error_on_result=True, retry_on_result=0).execute(self.return_(0))

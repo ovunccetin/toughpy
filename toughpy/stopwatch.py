@@ -11,7 +11,7 @@ _1M = 1000000
 
 class Stopwatch:
     @classmethod
-    def create_started(cls, name=None):
+    def start_new(cls, name=None):
         return cls(name).start()
 
     def __init__(self, name=None):

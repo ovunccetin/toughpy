@@ -1,12 +1,11 @@
-import toughpy.utils as util
-from .utils import UNDEFINED
-from .stopwatch import Stopwatch
-from .commons import predicates
-from .commons.backoff import fixed as fixed_backoff
-import six
 import sys
 import time
 import traceback
+import six
+import toughpy.utils as util
+from .commons import predicates
+from .commons.backoff import fixed as fixed_backoff
+from .utils import UNDEFINED
 
 _msg_invalid_max_attempts = '`%s` is not a valid value for `max_attempts`. It should be an integer greater than 0.'
 
@@ -38,14 +37,17 @@ class Retry:
                  retry_on_result=UNDEFINED,
                  backoff=None,
                  max_delay=None,
-                 wrap_result=False):
+                 wrap_error=False,
+                 error_on_result=False):
         self._name = name
         self._max_attempts = Retry._get_max_attempts(max_attempts)
         self._retry_on_error = Retry._get_retry_on_error_fn(retry_on_error)
         self._retry_on_result = Retry._get_retry_on_result_fn(retry_on_result)
         self._backoff = Retry._get_backoff_fn(backoff)
         self._max_delay = max_delay
-        self._wrap_result = wrap_result
+        self._wrap_error = wrap_error
+        self._error_on_result = error_on_result
+        self._metrics = RetryMetrics()
 
     @staticmethod
     def _get_max_attempts(given):
@@ -101,44 +103,50 @@ class Retry:
     def name(self):
         return self._name
 
+    # noinspection PyProtectedMember
     def execute(self, fn, *args, **kwargs):
-        timer = Stopwatch.create_started()
-        attempt = Retry._try(fn, attempt=1, *args, **kwargs)
+        self._metrics.total_calls += 1
+
+        attempt = Retry._try(fn, attempt_no=1, *args, **kwargs)
 
         while self._should_retry(attempt):
             attempt_number = attempt.attempt_number
-            self._exec_backoff(attempt)
+            self._exec_backoff(attempt_number)
             attempt = Retry._try(fn, attempt_number + 1, *args, **kwargs)
 
-        elapsed_time = timer.stop().elapsed_time()
+        result = attempt.result
 
-        if self._wrap_result:
-            return RetryResult(self.name, attempt, elapsed_time)
-        else:
-            return attempt.get(self._name)
+        if not attempt.has_error:  # success
+            should_raise_error = self._error_on_result and self._retry_on_result(result)
 
-    def _exec_backoff(self, attempt):
-        delay = self._backoff(attempt=attempt.attempt_number)
-        max_delay = self._max_delay
+            if should_raise_error:
+                self._metrics._increment_failed_calls(attempt)
+            else:
+                self._metrics._increment_successful_calls(attempt)
 
-        if max_delay and delay > max_delay:
-            delay = max_delay
+            if should_raise_error:
+                raise RetryError(self._name, attempt)
+            else:
+                return result
+        else:  # error
+            self._metrics._increment_failed_calls(attempt)
 
-        if delay > 0:
-            time.sleep(delay)
+            if self._wrap_error:
+                raise RetryError(self._name, attempt)
+            else:
+                six.reraise(result[0], result[1], result[2])
 
     @staticmethod
-    def _try(fn, attempt, *args, **kwargs):
+    def _try(fn, attempt_no, *args, **kwargs):
         try:
-            result = fn(*args, **kwargs)
-            return _Attempt(result, attempt, has_error=False)
+            return Attempt(fn(*args, **kwargs), attempt_no, has_error=False)
         except:
             error = sys.exc_info()
-            return _Attempt(error, attempt, has_error=True)
+            return Attempt(error, attempt_no, has_error=True)
 
     def _should_retry(self, attempt):
         if attempt.has_error:
-            should_retry = self._retry_on_error(attempt.error)
+            should_retry = self._retry_on_error(attempt.get_error())
         else:
             should_retry = self._retry_on_result(attempt.result)
 
@@ -147,35 +155,51 @@ class Retry:
         else:
             return False
 
+    def _exec_backoff(self, attempt_number):
+        delay = self._backoff(attempt=attempt_number)
+        max_delay = self._max_delay
 
-class _Attempt:
+        if max_delay and delay > max_delay:
+            delay = max_delay
+
+        if delay > 0:
+            time.sleep(delay)
+
+    def _increment_metrics_by_attempt(self, attempt):
+        if attempt.has_error:
+            if attempt.attempt_number == 1:
+                self._metrics.failed_calls_without_retry += 1
+            else:
+                self._metrics.failed_calls_with_retry += 1
+        else:
+            if attempt.attempt_number == 1:
+                self._metrics.successful_calls_without_retry += 1
+            else:
+                self._metrics.successful_calls_with_retry += 1
+
+
+class Attempt:
     def __init__(self, result, attempt_number, has_error):
         self.result = result
         self.attempt_number = attempt_number
         self.has_error = has_error
 
-    def get(self, retry_name, wrap_error=False):
-        if not self.has_error:
-            return self.result
-        else:
-            res = self.result
-            if wrap_error:
-                raise RetryError(retry_name, self)
-            else:
-                six.reraise(res[0], res[1], res[2])
-
-    @property
-    def error(self):
+    def get_error(self):
         if self.has_error:
             return self.result[1]
+
+    def is_first_attempt(self):
+        return self.attempt_number == 1
 
     def __repr__(self):
         if self.has_error:
             e_type = self.result[0]
             e_trace = self.result[2]
-            return '{0}: {1}\n{2}'.format(e_type.__name__, str(self.error), "".join(traceback.format_tb(e_trace)))
+            return '{0}: {1}\n{2}'.format(e_type.__name__,
+                                          str(self.get_error()),
+                                          "".join(traceback.format_tb(e_trace)))
         else:
-            return 'Result: {0}'.format(self.result)
+            return str(self.result)
 
 
 class RetryError(Exception):
@@ -185,34 +209,62 @@ class RetryError(Exception):
         self.last_attempt = last_attempt
 
     def __str__(self):
-        return 'Retry `{0}` failed after {1} attempts! The last failure:\n{2}'.format(
-            self.retry_name,
-            self.last_attempt.attempt_number,
-            self.last_attempt
-        )
+        if self.last_attempt.has_error:
+            return 'Retry `{0}` failed after {1} attempts! The last failure:\n{2}'.format(
+                self.retry_name,
+                self.last_attempt.attempt_number,
+                self.last_attempt
+            )
+        else:
+            return 'Retry `{0}` failed after {1} attempts! The last result: {2}'.format(
+                self.retry_name,
+                self.last_attempt.attempt_number,
+                self.last_attempt
+            )
 
 
-class RetryResult:
-    def __init__(self, name, last_attempt, elapsed_time):
-        self._name = name
-        self._last_attempt = last_attempt
-        self._elapsed_time = elapsed_time
+class RetryMetrics:
+    def __init__(self):
+        self.successful_calls_without_retry = 0
+        self.successful_calls_with_retry = 0
+        self.failed_calls_without_retry = 0
+        self.failed_calls_with_retry = 0
+        self.total_calls = 0
+        self.total_retry_attempts = 0
 
-    def get(self, wrap_error=False):
-        return self._last_attempt.get(self._name, wrap_error)
+    def retry_attempts_per_call(self):
+        return float(self.total_retry_attempts) / self.total_calls
 
-    @property
-    def elapsed_time(self):
-        return self._elapsed_time
+    def percentage_of_successful_calls_without_retry(self):
+        return self._percentage_of(self.successful_calls_without_retry)
 
-    @property
-    def last_attempt_number(self):
-        return self._last_attempt.attempt_number
+    def percentage_of_successful_calls_with_retry(self):
+        return self._percentage_of(self.successful_calls_with_retry)
 
-    @property
-    def is_failure(self):
-        return self._last_attempt.has_error
+    def percentage_of_failed_calls_without_retry(self):
+        return self._percentage_of(self.failed_calls_without_retry)
 
-    @property
-    def is_success(self):
-        return not self._last_attempt.has_error
+    def percentage_of_failed_calls_with_retry(self):
+        return self._percentage_of(self.failed_calls_with_retry)
+
+    def _percentage_of(self, value):
+        return (float(value) / self.total_calls) * 100
+
+    def _increment_successful_calls(self, attempt):
+        if attempt.is_first_attempt():
+            self.successful_calls_without_retry += 1
+        else:
+            self.successful_calls_with_retry += 1
+
+    def _increment_failed_calls(self, attempt):
+        if attempt.is_first_attempt():
+            self.failed_calls_without_retry += 1
+        else:
+            self.failed_calls_with_retry += 1
+
+
+__all__ = [
+    'Retry',
+    'RetryError',
+    'RetryMetrics'
+]

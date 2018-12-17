@@ -33,16 +33,16 @@ class Retry:
     def __init__(self,
                  name,
                  max_attempts=None,
-                 retry_on_error=None,
-                 retry_on_result=UNDEFINED,
+                 on_error=None,
+                 on_result=UNDEFINED,
                  backoff=None,
                  max_delay=None,
                  wrap_error=False,
                  error_on_result=False):
         self._name = name
         self._max_attempts = Retry._get_max_attempts(max_attempts)
-        self._retry_on_error = Retry._get_retry_on_error_fn(retry_on_error)
-        self._retry_on_result = Retry._get_retry_on_result_fn(retry_on_result)
+        self._retry_on_error = Retry._get_retry_on_error_fn(on_error)
+        self._retry_on_result = Retry._get_retry_on_result_fn(on_result)
         self._backoff = Retry._get_backoff_fn(backoff)
         self._max_delay = max_delay
         self._wrap_error = wrap_error
@@ -103,18 +103,22 @@ class Retry:
     def name(self):
         return self._name
 
+    @property
+    def metrics(self):
+        return self._metrics
+
     # noinspection PyProtectedMember
     def execute(self, fn, *args, **kwargs):
-        self._metrics.total_calls += 1
-
         attempt = Retry._try(fn, attempt_no=1, *args, **kwargs)
 
         while self._should_retry(attempt):
+            self._metrics.total_retry_attempts += 1
             attempt_number = attempt.attempt_number
             self._exec_backoff(attempt_number)
             attempt = Retry._try(fn, attempt_number + 1, *args, **kwargs)
 
         result = attempt.result
+        self._metrics.total_calls += 1
 
         if not attempt.has_error:  # success
             should_raise_error = self._error_on_result and self._retry_on_result(result)
@@ -232,23 +236,28 @@ class RetryMetrics:
         self.total_calls = 0
         self.total_retry_attempts = 0
 
+    @property
     def retry_attempts_per_call(self):
         return float(self.total_retry_attempts) / self.total_calls
 
-    def percentage_of_successful_calls_without_retry(self):
-        return self._percentage_of(self.successful_calls_without_retry)
+    @property
+    def ratio_of_successful_calls_without_retry(self):
+        return self._ratio_of(self.successful_calls_without_retry)
 
-    def percentage_of_successful_calls_with_retry(self):
-        return self._percentage_of(self.successful_calls_with_retry)
+    @property
+    def ratio_of_successful_calls_with_retry(self):
+        return self._ratio_of(self.successful_calls_with_retry)
 
-    def percentage_of_failed_calls_without_retry(self):
-        return self._percentage_of(self.failed_calls_without_retry)
+    @property
+    def ratio_of_failed_calls_without_retry(self):
+        return self._ratio_of(self.failed_calls_without_retry)
 
-    def percentage_of_failed_calls_with_retry(self):
-        return self._percentage_of(self.failed_calls_with_retry)
+    @property
+    def ratio_of_failed_calls_with_retry(self):
+        return self._ratio_of(self.failed_calls_with_retry)
 
-    def _percentage_of(self, value):
-        return (float(value) / self.total_calls) * 100
+    def _ratio_of(self, value):
+        return float(value) / self.total_calls
 
     def _increment_successful_calls(self, attempt):
         if attempt.is_first_attempt():

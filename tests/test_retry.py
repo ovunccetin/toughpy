@@ -12,8 +12,8 @@ DEFAULT_ELAPSED_TIME = DEFAULT_BACKOFF * (DEFAULT_MAX_ATTEMPTS - 1)
 # noinspection PyPep8Naming
 def Retry(name='test_retry',
           on_error=None,
-          max_attempts=DEFAULT_MAX_ATTEMPTS,
           on_result=UNDEFINED,
+          max_attempts=DEFAULT_MAX_ATTEMPTS,
           backoff=UNDEFINED,
           max_delay=None,
           wrap_error=False,
@@ -21,7 +21,7 @@ def Retry(name='test_retry',
     if backoff is UNDEFINED:
         backoff = 0
 
-    return tough.Retry(name, on_error, max_attempts, on_result,
+    return tough.Retry(name, on_error, on_result, max_attempts,
                        backoff, max_delay, wrap_error, error_on_result)
 
 

@@ -33,8 +33,8 @@ class Retry:
     def __init__(self,
                  name,
                  on_error=None,
-                 max_attempts=None,
                  on_result=UNDEFINED,
+                 max_attempts=None,
                  backoff=None,
                  max_delay=None,
                  wrap_error=False,
@@ -282,7 +282,7 @@ def retry(func=None, name=None, on_error=None, on_result=UNDEFINED, max_attempts
         else:
             retry_name = name
 
-        retry_instance = Retry(retry_name, on_error, max_attempts, on_result,
+        retry_instance = Retry(retry_name, on_error, on_result, max_attempts,
                                backoff, max_delay, wrap_error, error_on_result)
 
         @six.wraps(fn)

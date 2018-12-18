@@ -4,7 +4,7 @@ import traceback
 import six
 import tough.utils as util
 from .commons import predicates
-from .commons.backoff import fixed as fixed_backoff
+from .commons import backoffs
 from .utils import UNDEFINED
 
 _msg_invalid_max_attempts = '`%s` is not a valid value for `max_attempts`. It should be an integer greater than 0.'
@@ -20,8 +20,8 @@ _msg_invalid_retry_on_error = '''A value of `%s` is not valid for `retry_on_erro
 
 _msg_invalid_backoff = '''A value of `%s` is not valid for `backoff`. It should be on of the followings:
  - Missing or None to set the default delay.
- - An integer to put a fixed delay in seconds (e.g. 1 means 1 second).
- - A float to put a fixed delay in seconds (e.g. 1.3 means 1 second and 300 milliseconds)
+ - A number (int or float) to put a fixed delay in seconds (e.g. 1: 1s, 1.2: 1s and 200ms).
+ - A list or tuple of numbers as a sequence of delays. (e.g. [1, 2, 5]: 1s + 2s + 5s + 5s + ...)
  - A callable (e.g. a function) taking the previous Attempt object and returning a number which is the delay in seconds.
 '''
 
@@ -89,9 +89,11 @@ class Retry:
     @staticmethod
     def _get_backoff_fn(given):
         if given is None:
-            result = fixed_backoff(Retry.DEFAULT_BACKOFF)
+            result = backoffs.fixed(Retry.DEFAULT_BACKOFF)
         elif util.is_number(given):
-            result = fixed_backoff(given)
+            result = backoffs.fixed(given)
+        elif util.is_list_or_tuple_of_numbers(given):
+            result = backoffs.fixed_list(given)
         elif callable(given):
             result = given
         else:
@@ -272,8 +274,32 @@ class RetryMetrics:
             self.failed_calls_with_retry += 1
 
 
+def retry(func=None, name=None, max_attempts=None, on_error=None, on_result=UNDEFINED,
+          backoff=None, max_delay=None, wrap_error=False, error_on_result=False):
+    def decorate(fn):
+        if name is None:
+            retry_name = util.qualified_name(fn)
+        else:
+            retry_name = name
+
+        retry_instance = Retry(retry_name, max_attempts, on_error, on_result,
+                               backoff, max_delay, wrap_error, error_on_result)
+
+        @six.wraps(fn)
+        def decorator(*args, **kwargs):
+            return retry_instance.execute(fn, *args, **kwargs)
+
+        return decorator
+
+    if callable(func):
+        return decorate(func)
+
+    return decorate
+
+
 __all__ = [
     'Retry',
     'RetryError',
-    'RetryMetrics'
+    'RetryMetrics',
+    'retry'
 ]

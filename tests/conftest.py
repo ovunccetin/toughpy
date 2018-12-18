@@ -5,10 +5,16 @@ def pytest_itemcollected(item):
     parent = item.parent.obj
     node = item.obj
 
+    test_name = node.__name__
+    test_desc = node.__doc__
     parent_label = _get_parent_label(parent)
-    test_label = _get_test_label(node)
-    if test_label:
-        item._nodeid = bold(magenta(' + ')) + bold(parent_label) + ': ' + cyan(test_label)
+
+    txt = bold(magenta(' + ')) + bold(parent_label) + ': ' + cyan(test_name)
+
+    if not test_desc:
+        item._nodeid = txt
+    else:
+        item._nodeid = txt + ': ' + gray(test_desc)
 
 
 def _get_parent_label(parent):
@@ -28,24 +34,15 @@ def _get_parent_label(parent):
     return label
 
 
-def _get_test_label(node):
-    label = node.__doc__ if node.__doc__ else node.__name__
-
-    lines = filter(
-        lambda l: len(l) > 0,
-        [line.strip() for line in label.splitlines()]
-    )
-
-    first = True
-    line_list = []
+def _calc_number_of_extra_spaces(lines):
+    min_spaces = 1000
     for line in lines:
-        if first:
-            line_list.append(line)
-            first = False
-        else:
-            line_list.append('   ' + line)
+        if line:
+            lspaces = len(line) - len(line.lstrip())
+            if lspaces < min_spaces:
+                min_spaces = lspaces
 
-    return '\n'.join(line_list)
+    return min_spaces if min_spaces < 1000 else 0
 
 
 BLACK = '\033[30m'
@@ -72,6 +69,10 @@ def magenta(text):
 
 def cyan(text):
     return colorize(text, CYAN)
+
+
+def gray(text):
+    return colorize(text, GRAY)
 
 
 def bold(text):

@@ -1,3 +1,3 @@
 from .retry import *
-from .commons import backoff
+from .commons import backoffs
 from .commons.duration import *

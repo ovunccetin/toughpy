@@ -1,6 +1,6 @@
 import time
 from .utils import StateError
-# from toughpy import Duration, duration
+# from tough import Duration, duration
 from .commons.duration import microseconds, Duration
 
 _1M = 1000000

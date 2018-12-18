@@ -1,13 +1,13 @@
 from setuptools import setup
 
 setup(
-    name='toughpy',
+    name='tough',
     version='0.1',
     author='Ovunc Cetin',
     author_email='ovunccetin@gmail.com',
     description='A fault tolerance library designed for Python.',
     license='Apache',
-    packages=['toughpy'],
+    packages=['tough'],
     extras_require={
         'dev': [
             'pytest>=3'

@@ -1,7 +1,7 @@
-import toughpy as tp
+import tough as tp
 import pytest
 import contextlib as clib
-from toughpy.utils import UNDEFINED
+from tough.utils import UNDEFINED
 from tests.testutil import silence, timeit, assert_close_to
 
 DEFAULT_MAX_ATTEMPTS = tp.Retry.DEFAULT_MAX_ATTEMPTS

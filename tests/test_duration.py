@@ -1,4 +1,4 @@
-import toughpy as tp
+import tough as tp
 
 
 class TestTimeUnits:

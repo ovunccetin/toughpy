@@ -2,7 +2,7 @@ import sys
 import time
 import traceback
 import six
-import toughpy.utils as util
+import tough.utils as util
 from .commons import predicates
 from .commons.backoff import fixed as fixed_backoff
 from .utils import UNDEFINED

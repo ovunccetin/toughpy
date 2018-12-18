@@ -9,7 +9,7 @@ from .utils import UNDEFINED
 
 _msg_invalid_max_attempts = '`%s` is not a valid value for `max_attempts`. It should be an integer greater than 0.'
 
-_msg_invalid_retry_on_error = '''A value of `%s` is not valid for `retry_on_error`. It should be one of the followings:
+_msg_invalid_on_error = '''A value of `%s` is not valid for `on_error`. It should be one of the followings:
  - Missing or None to set to the default value (i.e. retry on any error)
  - An error type, e.g. ConnectionError
  - A tuple of error types, e.g. (ConnectionError, TimeoutError)
@@ -32,8 +32,8 @@ class Retry:
 
     def __init__(self,
                  name,
-                 max_attempts=None,
                  on_error=None,
+                 max_attempts=None,
                  on_result=UNDEFINED,
                  backoff=None,
                  max_delay=None,
@@ -71,7 +71,7 @@ class Retry:
         elif callable(given):
             result = given
         else:
-            raise ValueError(_msg_invalid_retry_on_error % type(given).__name__)
+            raise ValueError(_msg_invalid_on_error % type(given).__name__)
 
         return result
 
@@ -274,7 +274,7 @@ class RetryMetrics:
             self.failed_calls_with_retry += 1
 
 
-def retry(func=None, name=None, max_attempts=None, on_error=None, on_result=UNDEFINED,
+def retry(func=None, name=None, on_error=None, on_result=UNDEFINED, max_attempts=None,
           backoff=None, max_delay=None, wrap_error=False, error_on_result=False):
     def decorate(fn):
         if name is None:
@@ -282,7 +282,7 @@ def retry(func=None, name=None, max_attempts=None, on_error=None, on_result=UNDE
         else:
             retry_name = name
 
-        retry_instance = Retry(retry_name, max_attempts, on_error, on_result,
+        retry_instance = Retry(retry_name, on_error, max_attempts, on_result,
                                backoff, max_delay, wrap_error, error_on_result)
 
         @six.wraps(fn)

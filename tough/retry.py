@@ -162,7 +162,7 @@ class Retry:
             return False
 
     def _exec_backoff(self, attempt_number):
-        delay = self._backoff(attempt=attempt_number)
+        delay = self._backoff(attempt_no=attempt_number)
         max_delay = self._max_delay
 
         if max_delay and delay > max_delay:

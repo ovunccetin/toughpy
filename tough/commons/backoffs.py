@@ -4,7 +4,7 @@ import random as r
 
 def fixed(delay):
     # noinspection PyUnusedLocal
-    def _get(**kwargs):
+    def _get(*args, **kwargs):
         return delay
 
     return _get
@@ -13,8 +13,9 @@ def fixed(delay):
 def fixed_list(delay_list):
     length = len(delay_list)
 
-    def _get_delay(**kwargs):
-        attempt_no = kwargs['attempt']
+    # noinspection PyUnusedLocal
+    def _get_delay(*args, **kwargs):
+        attempt_no = _get_attempt_no(kwargs)
         if attempt_no - 1 < length:
             idx = attempt_no - 1
         else:
@@ -27,7 +28,7 @@ def fixed_list(delay_list):
 
 def random(min_sec, max_sec):
     # noinspection PyUnusedLocal
-    def _get(**kwargs):
+    def _get(*args, **kwargs):
         lb = int(min_sec * 1000)
         ub = int(max_sec * 1000)
 
@@ -41,9 +42,8 @@ def linear(initial, accrual, rnd=None):
     rnd_fn = _get_rnd_fn(rnd)
 
     # noinspection PyUnusedLocal
-    def _get(**kwargs):
-        attempt_no = kwargs['attempt']
-
+    def _get(*args, **kwargs):
+        attempt_no = _get_attempt_no(kwargs)
         return initial + accrual * (attempt_no - 1) + rnd_fn()
 
     return _get
@@ -52,8 +52,9 @@ def linear(initial, accrual, rnd=None):
 def exponential(initial, exp_base=2, rnd=None):
     rnd_fn = _get_rnd_fn(rnd)
 
-    def _get(**kwargs):
-        attempt_no = kwargs['attempt']
+    # noinspection PyUnusedLocal
+    def _get(*args, **kwargs):
+        attempt_no = _get_attempt_no(kwargs)
         return initial * exp_base ** (attempt_no - 1) + rnd_fn()
 
     return _get
@@ -68,3 +69,7 @@ def _get_rnd_fn(rnd):
         fn = lambda: 0
 
     return fn
+
+
+def _get_attempt_no(kwargs):
+    return kwargs['attempt_no']

@@ -223,7 +223,7 @@ class TestBackoff(BaseRetryTest):
         assert_close_to(time_elapsed, expected=0.05 + 0.1 + 0.2 + 0.4)
 
     def test_exponential_delay_with_base(self):
-        rt = Retry(max_attempts=5, backoff=backoffs.exponential(initial=0.01, exp_base=3))
+        rt = Retry(max_attempts=5, backoff=backoffs.exponential(initial=0.01, base=3))
         time_elapsed = self.exec_and_timeit(rt)
 
         assert_close_to(time_elapsed, expected=0.01 + 0.03 + 0.09 + 0.25)

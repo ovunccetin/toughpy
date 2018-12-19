@@ -49,13 +49,14 @@ def linear(initial, accrual, rnd=None):
     return _get
 
 
-def exponential(initial, exp_base=2, rnd=None):
+def exponential(initial, base=2, rnd=None):
     rnd_fn = _get_rnd_fn(rnd)
 
     # noinspection PyUnusedLocal
     def _get(*args, **kwargs):
+        print("ARGS = " + str(args) + "; KWARGS = " + str(kwargs))
         attempt_no = _get_attempt_no(kwargs)
-        return initial * exp_base ** (attempt_no - 1) + rnd_fn()
+        return initial * base ** (attempt_no - 1) + rnd_fn()
 
     return _get
 

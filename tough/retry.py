@@ -3,8 +3,8 @@ import time
 import traceback
 import six
 import tough.utils as util
-from .commons import predicates
-from .commons import backoffs
+from .common import predicates
+from .common import backoffs
 from .utils import UNDEFINED
 
 _msg_invalid_max_attempts = '`%s` is not a valid value for `max_attempts`. It should be an integer greater than 0.'

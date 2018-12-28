@@ -1,9 +1,11 @@
-import tough
+import contextlib as clib
+
 import pytest
-from tough.utils import UNDEFINED
+
+import tough
+from tests.testutil import silence, assert_close_to, Timer, timeit
 from tough import retry, backoffs, RetryError
-from tests.testutil import *
-import random as r
+from tough.utils import UNDEFINED
 
 DEFAULT_MAX_ATTEMPTS = tough.Retry.DEFAULT_MAX_ATTEMPTS
 DEFAULT_BACKOFF = tough.Retry.DEFAULT_BACKOFF
@@ -12,8 +14,8 @@ DEFAULT_ELAPSED_TIME = DEFAULT_BACKOFF * (DEFAULT_MAX_ATTEMPTS - 1)
 
 # noinspection PyPep8Naming
 def Retry(name='test_retry',
-          if_error=None,
-          if_result=UNDEFINED,
+          retry_on_error=None,
+          retry_on_result=UNDEFINED,
           max_attempts=DEFAULT_MAX_ATTEMPTS,
           backoff=UNDEFINED,
           max_delay=None,
@@ -22,7 +24,7 @@ def Retry(name='test_retry',
     if backoff is UNDEFINED:
         backoff = 0
 
-    return tough.Retry(name, if_error, if_result, max_attempts,
+    return tough.Retry(name, retry_on_error, retry_on_result, max_attempts,
                        backoff, max_delay, wrap_error, raise_if_bad_result)
 
 
@@ -85,26 +87,30 @@ class TestMaxAttempts(BaseRetryTest):
             Retry(max_attempts='1')
 
     def test_retry_default_times_at_most(self):
-        with silence(): Retry().execute(self.fail)
+        with silence():
+            Retry().execute(self.fail)
 
         assert DEFAULT_MAX_ATTEMPTS == self.invocations
 
     def test_retry_given_times_at_most(self):
-        with silence(): Retry(max_attempts=5).execute(self.fail)
+        with silence():
+            Retry(max_attempts=5).execute(self.fail)
 
         assert 5 == self.invocations
 
     def test_retry_one_time_at_most(self):
-        with silence(): Retry(max_attempts=1).execute(self.fail)
+        with silence():
+            Retry(max_attempts=1).execute(self.fail)
 
         assert 1 == self.invocations
 
 
 class TestRetryOnError(BaseRetryTest):
     def test_not_retry_on_unmatched_errors(self):
-        rt = Retry(if_error=TypeError)
+        rt = Retry(retry_on_error=TypeError)
 
-        with silence(): rt.execute(self.fail_with(ValueError))
+        with silence():
+            rt.execute(self.fail_with(ValueError))
 
         assert 1 == self.invocations
 
@@ -124,16 +130,17 @@ class TestRetryOnError(BaseRetryTest):
         assert DEFAULT_MAX_ATTEMPTS == self.invocations
 
     def test_retry_on_single_error_type(self):
-        rt = Retry(if_error=ValueError)
+        rt = Retry(retry_on_error=ValueError)
 
-        with silence(): rt.execute(self.fail_with(ValueError))
+        with silence():
+            rt.execute(self.fail_with(ValueError))
 
         assert DEFAULT_MAX_ATTEMPTS == self.invocations
 
     def test_retry_on_collection_of_error_types(self):
-        retry1 = Retry(if_error=(TypeError, ValueError))  # tuple
-        retry2 = Retry(if_error=[TypeError, ValueError])  # list
-        retry3 = Retry(if_error={TypeError, ValueError})  # set
+        retry1 = Retry(retry_on_error=(TypeError, ValueError))  # tuple
+        retry2 = Retry(retry_on_error=[TypeError, ValueError])  # list
+        retry3 = Retry(retry_on_error={TypeError, ValueError})  # set
 
         with silence():
             retry1.execute(self.fail_with(ValueError))
@@ -148,9 +155,10 @@ class TestRetryOnError(BaseRetryTest):
         assert DEFAULT_MAX_ATTEMPTS == self.invocations
 
     def test_retry_wrt_a_predicate_function(self):
-        rt = Retry(if_error=lambda e: isinstance(e, ValueError))
+        rt = Retry(retry_on_error=lambda e: isinstance(e, ValueError))
 
-        with silence(): rt.execute(self.fail_with(ValueError))
+        with silence():
+            rt.execute(self.fail_with(ValueError))
 
         assert DEFAULT_MAX_ATTEMPTS == self.invocations
 
@@ -161,19 +169,19 @@ class TestRetryOnResult(BaseRetryTest):
         assert 1 == self.invocations
 
     def test_retry_if_result_is_none(self):
-        rt = Retry(if_result=None)
+        rt = Retry(retry_on_result=None)
 
         assert rt.execute(self.returning(None)) is None
         assert DEFAULT_MAX_ATTEMPTS == self.invocations
 
     def test_retry_if_result_is_undesired(self):
-        rt = Retry(if_result=3)
+        rt = Retry(retry_on_result=3)
 
         assert rt.execute(self.returning(3)) is 3
         assert DEFAULT_MAX_ATTEMPTS == self.invocations
 
     def test_retry_if_result_matches_given_predicate(self):
-        rt = Retry(if_result=lambda x: x > 5)
+        rt = Retry(retry_on_result=lambda x: x > 5)
 
         assert rt.execute(self.returning(6)) is 6
         assert DEFAULT_MAX_ATTEMPTS == self.invocations
@@ -252,17 +260,18 @@ class TestExecutionResult(BaseRetryTest):
             Retry(wrap_error=True).execute(self.fail_with(ConnectionError))
 
     def test_returning_bad_result(self):
-        assert Retry(if_result=0).execute(self.returning(0)) == 0
+        assert Retry(retry_on_result=0).execute(self.returning(0)) == 0
 
     def test_raising_error_on_bad_result(self):
         with pytest.raises(tough.RetryError):
-            Retry(raise_if_bad_result=True, if_result=0).execute(self.returning(0))
+            Retry(raise_if_bad_result=True, retry_on_result=0).execute(self.returning(0))
 
 
 class TestRetryMetrics(BaseRetryTest):
     def test_if_succeeded_at_the_first_attempt(self):
         rt = Retry()
-        for i in range(10): rt.execute(self.returning('ok'))
+        for _ in range(10):
+            rt.execute(self.returning('ok'))
 
         metrics = rt.metrics
         assert metrics.total_calls == 10
@@ -282,9 +291,9 @@ class TestRetryMetrics(BaseRetryTest):
         assert metrics.ratio_of_failed_calls_with_retry == 0.0
 
     def test_if_succeeded_after_some_retry_attempts(self):
-        rt = Retry(if_error=ConnectionError, max_attempts=4)
+        rt = Retry(retry_on_error=ConnectionError, max_attempts=4)
 
-        for i in range(10):
+        for _ in range(10):
             with silence(), self.no_invocations():
                 rt.execute(self.succeed_eventually(after=ConnectionError, succeed_at=3))
 
@@ -306,10 +315,11 @@ class TestRetryMetrics(BaseRetryTest):
         assert metrics.ratio_of_failed_calls_with_retry == 0.0
 
     def test_if_failed_at_the_first_attempt(self):
-        rt = Retry(if_error=ValueError)
+        rt = Retry(retry_on_error=ValueError)
 
-        for i in range(10):
-            with silence(): rt.execute(self.fail_with(ConnectionError))
+        for _ in range(10):
+            with silence():
+                rt.execute(self.fail_with(ConnectionError))
 
         metrics = rt.metrics
         assert metrics.total_calls == 10
@@ -329,10 +339,11 @@ class TestRetryMetrics(BaseRetryTest):
         assert metrics.ratio_of_failed_calls_with_retry == 0.0
 
     def test_if_failed_after_all_retry_attempts(self):
-        rt = Retry(if_error=ConnectionError, max_attempts=3)
+        rt = Retry(retry_on_error=ConnectionError, max_attempts=3)
 
         for i in range(10):
-            with silence(): rt.execute(self.fail_with(ConnectionError))
+            with silence():
+                rt.execute(self.fail_with(ConnectionError))
 
         metrics = rt.metrics
         assert metrics.total_calls == 10
@@ -352,10 +363,11 @@ class TestRetryMetrics(BaseRetryTest):
         assert metrics.ratio_of_failed_calls_with_retry == 1.0
 
     def test_if_failed_due_to_invalid_result(self):
-        rt = Retry(if_result=None, max_attempts=3, raise_if_bad_result=True)
+        rt = Retry(retry_on_result=None, max_attempts=3, raise_if_bad_result=True)
 
         for i in range(10):
-            with silence(): rt.execute(self.returning(None))
+            with silence():
+                rt.execute(self.returning(None))
 
         metrics = rt.metrics
         assert metrics.total_calls == 10
@@ -375,7 +387,7 @@ class TestRetryMetrics(BaseRetryTest):
         assert metrics.ratio_of_failed_calls_with_retry == 1.0
 
     def test_mixed_cases(self):
-        rt = Retry(max_attempts=3, if_error=ConnectionError, if_result=None, raise_if_bad_result=True)
+        rt = Retry(max_attempts=3, retry_on_error=ConnectionError, retry_on_result=None, raise_if_bad_result=True)
 
         for i in range(3):  # succeeds without any retry attempts
             rt.execute(self.returning('ok'))
@@ -385,13 +397,16 @@ class TestRetryMetrics(BaseRetryTest):
                 rt.execute(self.succeed_eventually(after=ConnectionError, succeed_at=2))
 
         for i in range(2):  # fails without any retry attempts
-            with silence(): rt.execute(self.fail_with(ValueError))
+            with silence():
+                rt.execute(self.fail_with(ValueError))
 
         for i in range(4):  # fails after all retry attempts
-            with silence(): rt.execute(self.fail_with(ConnectionError))
+            with silence():
+                rt.execute(self.fail_with(ConnectionError))
 
         for i in range(2):  # fails after all retry attempts
-            with silence(): rt.execute(self.returning(None))
+            with silence():
+                rt.execute(self.returning(None))
 
         metrics = rt.metrics
         assert metrics.total_calls == 16
@@ -411,7 +426,7 @@ class TestRetryMetrics(BaseRetryTest):
         assert metrics.ratio_of_failed_calls_with_retry == 0.375
 
 
-class TestRetryDecorator(BaseRetryTest):
+class TestDecoratorFunction(BaseRetryTest):
     def test_with_defaults(self):
         @retry
         def func1(): self.fail()
@@ -420,45 +435,75 @@ class TestRetryDecorator(BaseRetryTest):
         def func2(): self.fail()
 
         with self.no_invocations():
-            with pytest.raises(Exception): func1()
+            with pytest.raises(Exception):
+                func1()
             assert DEFAULT_MAX_ATTEMPTS == self.invocations
 
         with self.no_invocations():
-            with pytest.raises(Exception): func2()
+            with pytest.raises(Exception):
+                func2()
             assert DEFAULT_MAX_ATTEMPTS == self.invocations
 
         assert 'func1' == func1.__name__
+
+    def test_decorated_func_with_args(self):
+        @retry(retry_on_error=OSError, backoff=0)
+        def raise_given_error(err): self.fail(err)
+
+        @retry
+        def return_params_string_1(*args, **kwargs):
+            return self.returning('ARGS={0}; KWARGS={1}'.format(args, kwargs))()
+
+        @retry()
+        def return_params_string_2(*args, **kwargs):
+            return self.returning('ARGS={0}; KWARGS={1}'.format(args, kwargs))()
+
+        with self.no_invocations():
+            with pytest.raises(OSError):
+                raise_given_error(OSError)
+            assert DEFAULT_MAX_ATTEMPTS == self.invocations
+
+        with self.no_invocations():
+            assert return_params_string_1(1, 2, 3, x=4, y=5) == "ARGS=(1, 2, 3); KWARGS={'x': 4, 'y': 5}"
+            assert 1 == self.invocations
+
+        with self.no_invocations():
+            assert return_params_string_2(1, 2, 3, x=4, y=5) == "ARGS=(1, 2, 3); KWARGS={'x': 4, 'y': 5}"
+            assert 1 == self.invocations
 
     def test_max_attempts(self):
         @retry(max_attempts=2)
         def fail(): self.fail()
 
-        with pytest.raises(Exception): fail()
+        with pytest.raises(Exception):
+            fail()
         assert 2 == self.invocations
 
-    def test_on_error(self):
-        @retry(if_error=(ConnectionError, BufferError), backoff=0)
+    def test_retry_on_error(self):
+        @retry(retry_on_error=(ConnectionError, BufferError), backoff=0)
         def fail_with_broken_pipe(): self.fail(BrokenPipeError)
 
-        @retry(if_error=ConnectionError)
+        @retry(retry_on_error=ConnectionError)
         def fail_with_value_error(): self.fail(ValueError)
 
         with self.no_invocations():
-            with pytest.raises(BrokenPipeError): fail_with_broken_pipe()
+            with pytest.raises(BrokenPipeError):
+                fail_with_broken_pipe()
             assert DEFAULT_MAX_ATTEMPTS == self.invocations
 
         with self.no_invocations():
-            with pytest.raises(ValueError): fail_with_value_error()
+            with pytest.raises(ValueError):
+                fail_with_value_error()
             assert 1 == self.invocations
 
-    def test_on_result(self):
-        @retry(if_result=None, backoff=0)
+    def test_retry_on_result(self):
+        @retry(retry_on_result=None, backoff=0)
         def return_none(): return self.returning(None)()
 
-        @retry(if_result=None)
+        @retry(retry_on_result=None)
         def return_some(): return self.returning('some')()
 
-        @retry(if_result=lambda x: x < 0, backoff=0)
+        @retry(retry_on_result=lambda x: x < 0, backoff=0)
         def return_negative(): return self.returning(-1)()
 
         with self.no_invocations():
@@ -477,24 +522,27 @@ class TestRetryDecorator(BaseRetryTest):
         @retry(backoff=0.2, max_attempts=2)
         def exec_with_fixed_backoff(): self.fail()
 
-        @retry(backoff=backoffs.linear(0.1, 0.2))
+        @retry(backoff=backoffs.linear(initial=0.1, accrual=0.2))
         def exec_with_linear_backoff(): self.fail()
 
         with Timer() as t1:
-            with silence(): exec_with_fixed_backoff()
+            with silence():
+                exec_with_fixed_backoff()
 
         with Timer() as t2:
-            with silence(): exec_with_fixed_backoff()
+            with silence():
+                exec_with_linear_backoff()
 
         assert_close_to(t1.elapsed, expected=0.2)
-        assert_close_to(t2.elapsed, expected=0.1 + 0.2)
+        assert_close_to(t2.elapsed, expected=0.1 + 0.3)
 
     def test_max_delay(self):
         @retry(max_delay=0.1, backoff=2.0)
         def exec_with_max_delay(): self.fail()
 
         with Timer() as t1:
-            with silence(): exec_with_max_delay()
+            with silence():
+                exec_with_max_delay()
 
         assert_close_to(t1.elapsed, expected=0.1 * DEFAULT_MAX_ATTEMPTS)
 
@@ -511,11 +559,11 @@ class TestRetryDecorator(BaseRetryTest):
         with pytest.raises(RetryError):
             exec_with_wrapping_error()
 
-    def test_error_on_result(self):
-        @retry(if_result=None, raise_if_bad_result=False, backoff=0)
+    def test_raise_if_bad_result(self):
+        @retry(retry_on_result=None, raise_if_bad_result=False, backoff=0)
         def exec_without_error_on_result(): self.returning(None)()
 
-        @retry(if_result=None, raise_if_bad_result=True, backoff=0)
+        @retry(retry_on_result=None, raise_if_bad_result=True, backoff=0)
         def exec_with_error_on_result(): self.returning(None)()
 
         assert exec_without_error_on_result() is None
@@ -523,16 +571,6 @@ class TestRetryDecorator(BaseRetryTest):
         with pytest.raises(RetryError):
             exec_with_error_on_result()
 
-    def test_custom_retry_decorator(self):
-        retry_os_errors = Retry(if_error=OSError, max_attempts=5, backoff=0.15)
 
-        @retry_os_errors
-        def raise_an_os_error(): self.fail(r.choice([ConnectionError, InterruptedError, TimeoutError]))
-
-        with Timer() as t1:
-            with pytest.raises(OSError): raise_an_os_error()
-
-        assert 'raise_an_os_error' == raise_an_os_error.__name__
-        assert 5 == self.invocations
-        assert_close_to(t1.elapsed, expected=0.15 * 4)
-
+class TestCustomDecoratorInstance(BaseRetryTest):
+    pass

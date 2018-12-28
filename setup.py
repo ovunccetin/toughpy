@@ -27,5 +27,6 @@ setup(
         'Programming Language :: Python :: 3.7'
     ],
     setup_requires=['pytest-runner'],
-    tests_require=['pytest'], install_requires=['six']
+    tests_require=['pytest', 'behave'],
+    install_requires=['six']
 )

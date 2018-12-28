@@ -1,9 +1,9 @@
 import random as r
 
+
 # TODO write unit tests for backoff functions
 
 def fixed(delay):
-    # noinspection PyUnusedLocal
     def _get(attempt_no=None):
         return delay
 
@@ -13,7 +13,6 @@ def fixed(delay):
 def fixed_list(delay_list):
     length = len(delay_list)
 
-    # noinspection PyUnusedLocal
     def _get_delay(attempt_no):
         if attempt_no - 1 < length:
             idx = attempt_no - 1
@@ -26,13 +25,12 @@ def fixed_list(delay_list):
 
 
 def random(min_sec, max_sec):
-    # noinspection PyUnusedLocal
     def _get(attempt_no=None):
-        lb = int(min_sec * 1000)
-        ub = int(max_sec * 1000)
+        lower_bound = int(min_sec * 1000)
+        upper_bound = int(max_sec * 1000)
 
-        ms = r.randint(lb, ub)
-        return float(ms) / 1000
+        millis = r.randint(lower_bound, upper_bound)
+        return float(millis) / 1000
 
     return _get
 
@@ -40,7 +38,6 @@ def random(min_sec, max_sec):
 def linear(initial, accrual, rnd=None):
     rnd_fn = _get_rnd_fn(rnd)
 
-    # noinspection PyUnusedLocal
     def _get(attempt_no):
         return initial + accrual * (attempt_no - 1) + rnd_fn()
 
@@ -50,7 +47,6 @@ def linear(initial, accrual, rnd=None):
 def exponential(initial, base=2, rnd=None):
     rnd_fn = _get_rnd_fn(rnd)
 
-    # noinspection PyUnusedLocal
     def _get(attempt_no):
         return initial * base ** (attempt_no - 1) + rnd_fn()
 

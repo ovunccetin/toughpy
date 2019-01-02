@@ -1,80 +1,96 @@
 from abc import abstractmethod
+from .utils import *
+
+_msg_invalid_error_predicate = '''A value of `%s` is not valid for an error predicate. It should be one of the followings:
+ - Missing or None to set to the default value (i.e. retry on any error)
+ - An error type, e.g. ConnectionError
+ - A tuple of error types, e.g. (ConnectionError, TimeoutError)
+ - A list of error types, e.g. [ConnectionError, TimeoutError]
+ - A set of error types, e.g. {ConnectionError, TimeoutError}
+ - A callable (e.g. a function) taking the result of the previous call and returning a boolean.
+'''
 
 
-class _Predicate:
+class Predicate:
+    def __call__(self, arg):
+        return self.test(arg)
+
     @abstractmethod
-    def __call__(self, arg): pass
+    def test(self, arg): pass
 
 
-class _IsInstanceOf(_Predicate):
-    def __init__(self, expected_types):
-        self.expected_types = expected_types
-
-    def __call__(self, arg):
-        if self.expected_types is None:
-            return isinstance(arg, BaseException)
-        else:
-            return isinstance(arg, self.expected_types)
-
-
-class _IsEqualTo(_Predicate):
-    def __init__(self, expected_value):
-        self.expected_value = expected_value
-
-    def __call__(self, arg):
-        if self.expected_value is None:
-            return arg is None
-        else:
-            return self.expected_value == arg
-
-
-class _Always(_Predicate):
+class _Always(Predicate):
     def __init__(self, result):
         self.result = result
 
-    def __call__(self, arg):
+    def test(self, arg):
         return self.result
 
 
-class _FromCallable(_Predicate):
-    def __init__(self, fn):
-        self.fn = fn
-
-    def __call__(self, arg):
-        return self.fn(arg)
+def __always_false(actual):
+    return False
 
 
-__is_any_error = _IsInstanceOf(expected_types=None)
-__always_true = _Always(True)
-__always_false = _Always(False)
-
-
-def always():
-    return __always_true
+def __always_true(actual):
+    return True
 
 
 def never():
     return __always_false
 
 
-def is_instance_of(expected_types):
-    return _IsInstanceOf(expected_types)
+def always():
+    return __always_true
 
 
-def is_error(expected_error_types=BaseException):
-    return is_instance_of(expected_error_types)
+def is_instance_of(expected):
+    def do_check(actual):
+        return isinstance(actual, expected)
+
+    return do_check
 
 
-def is_equal_to(expected_value):
-    return _IsEqualTo(expected_value)
+def is_error(expected=None):
+    if expected is None:
+        return is_instance_of(BaseException)
+    else:
+        return is_instance_of(expected)
 
 
-def from_callable(fn):
-    return _FromCallable(fn)
+def is_equal_to(expected):
+    def do_check(actual):
+        if expected is None:
+            return actual is None
+        else:
+            return expected == actual
+
+    return do_check
 
 
-def is_predicate(obj):
-    return isinstance(obj, _Predicate)
+def create_error_predicate(given):
+    if given is None:
+        result = is_error()
+    elif is_exception_type(given) or is_tuple_of_exception_types(given):
+        result = is_error(given)
+    elif is_list_or_set_of_exception_types(given):
+        result = is_error(tuple(given))
+    elif callable(given):
+        result = given
+    else:
+        raise ValueError(_msg_invalid_error_predicate % type(given).__name__)
+
+    return result
+
+
+def create_result_predicate(given):
+    if given is UNDEFINED:
+        result = never()
+    elif callable(given):
+        result = given
+    else:
+        result = is_equal_to(given)
+
+    return result
 
 
 __all__ = [
@@ -82,5 +98,5 @@ __all__ = [
     'never',
     'is_error',
     'is_equal_to',
-    'from_callable'
+    'is_instance_of'
 ]

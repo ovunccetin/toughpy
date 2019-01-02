@@ -1,5 +1,5 @@
 import time
-from .utils import StateError
+from tough.common.utils import StateError
 # from tough import Duration, duration
 from .common.duration import microseconds, Duration
 

@@ -46,3 +46,14 @@ def qualified_name(fn):
 class StateError(ValueError):
     """An analogue to Java's IllegalStateException"""
     pass
+
+
+__all__ = [
+    'UNDEFINED',
+    'is_exception_type',
+    'is_tuple_of_exception_types',
+    'is_list_or_set_of_exception_types',
+    'is_number',
+    'is_list_or_tuple_of_numbers',
+    'qualified_name'
+]

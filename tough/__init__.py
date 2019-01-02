@@ -1,4 +1,4 @@
 from .retry import *
 from .common import backoffs
 from .common.duration import *
-from .utils import UNDEFINED
+from tough.common.utils import UNDEFINED

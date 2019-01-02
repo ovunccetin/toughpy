@@ -91,12 +91,3 @@ def create_result_predicate(given):
         result = is_equal_to(given)
 
     return result
-
-
-__all__ = [
-    'always',
-    'never',
-    'is_error',
-    'is_equal_to',
-    'is_instance_of'
-]

@@ -8,13 +8,6 @@ from tough.common.utils import UNDEFINED
 
 _msg_invalid_max_attempts = '`%s` is not a valid value for `max_attempts`. It should be an integer greater than 0.'
 
-_msg_invalid_backoff = '''A value of `%s` is not a valid backoff. It should be on of the followings:
- - Missing or None to set the default delay which is 500ms.
- - A number (int or float) to put a fixed delay in seconds (e.g. 1: 1s, 1.2: 1s and 200ms).
- - A list or tuple of numbers as a sequence of delays. (e.g. [1, 2, 5]: 1s + 2s + 5s + 5s + ...)
- - A callable (e.g. a function) taking the previous Attempt object and returning a number which is the delay in seconds.
-'''
-
 
 class Retry:
     DEFAULT_MAX_ATTEMPTS = 3
@@ -33,7 +26,7 @@ class Retry:
         self._max_attempts = Retry._get_max_attempts(max_attempts)
         self._error_predicate = predicates.create_error_predicate(on_error)
         self._result_predicate = predicates.create_result_predicate(on_result)
-        self._backoff = Retry._get_backoff_fn(backoff)
+        self._backoff = backoffs.create_backoff_func(backoff)
         self._max_delay = max_delay
         self._wrap_error = wrap_error
         self._raise_if_bad_result = raise_if_bad_result
@@ -47,21 +40,6 @@ class Retry:
             result = given
         else:
             raise ValueError(_msg_invalid_max_attempts % given)
-
-        return result
-
-    @staticmethod
-    def _get_backoff_fn(given):
-        if given is None:
-            result = backoffs.fixed(Retry.DEFAULT_BACKOFF)
-        elif util.is_number(given):
-            result = backoffs.fixed(given)
-        elif util.is_list_or_tuple_of_numbers(given):
-            result = backoffs.fixed_list(given)
-        elif callable(given):
-            result = given
-        else:
-            raise ValueError(_msg_invalid_backoff % type(given).__name__)
 
         return result
 

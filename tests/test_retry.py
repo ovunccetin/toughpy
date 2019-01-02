@@ -8,7 +8,7 @@ from tough import retry, backoffs, RetryError
 from tough.common.utils import UNDEFINED
 
 DEFAULT_MAX_ATTEMPTS = tough.Retry.DEFAULT_MAX_ATTEMPTS
-DEFAULT_BACKOFF = tough.Retry.DEFAULT_BACKOFF
+DEFAULT_BACKOFF = tough.backoffs.DEFAULT_FIXED_DELAY
 DEFAULT_ELAPSED_TIME = DEFAULT_BACKOFF * (DEFAULT_MAX_ATTEMPTS - 1)
 
 
@@ -220,7 +220,7 @@ class TestBackoff(BaseRetryTest):
         assert_close_to(time_elapsed, expected=0.1 + 0.3 + 0.5)
 
     def test_linear_delay_with_random_addition(self):
-        rt = Retry(max_attempts=4, backoff=backoffs.linear(initial=0.1, accrual=0.2, rnd=(0.01, 0.02)))
+        rt = Retry(max_attempts=4, backoff=backoffs.linear(initial=0.1, accrual=0.2, randomizer=(0.01, 0.02)))
         time_elapsed = self.exec_and_timeit(rt)
 
         assert_close_to(time_elapsed, expected=0.1 + 0.3 + 0.5 + 3 * 0.01)
@@ -238,7 +238,7 @@ class TestBackoff(BaseRetryTest):
         assert_close_to(time_elapsed, expected=0.01 + 0.03 + 0.09 + 0.25)
 
     def test_exponential_delay_with_random_addition(self):
-        rt = Retry(max_attempts=5, backoff=backoffs.exponential(initial=0.05, rnd=(0.01, 0.02)))
+        rt = Retry(max_attempts=5, backoff=backoffs.exponential(initial=0.05, randomizer=(0.01, 0.02)))
         time_elapsed = self.exec_and_timeit(rt)
 
         assert_close_to(time_elapsed, expected=0.05 + 0.1 + 0.2 + 0.4 + 4 * 0.01)

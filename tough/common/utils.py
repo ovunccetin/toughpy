@@ -34,13 +34,24 @@ def qualified_name(fn):
 
     if hasattr(fn, '__module__'):
         module = fn.__module__
-        if module: qname.append(module)
+        if module:
+            qname.append(module)
 
     if hasattr(fn, '__qualname__'):
         qual_name = fn.__qualname__
-        if qual_name: qname.append(qual_name)
+        if qual_name:
+            qname.append(qual_name)
 
     return '.'.join(qname)
+
+
+def get_command_name(fn):
+    if hasattr(fn, '__command_name__'):
+        cmd_name = fn.__command_name__
+    else:
+        cmd_name = fn.__name__
+
+    return cmd_name
 
 
 class StateError(ValueError):

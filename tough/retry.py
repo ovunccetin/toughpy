@@ -14,7 +14,6 @@ class Retry:
     DEFAULT_BACKOFF = 0.5
 
     def __init__(self,
-                 name,
                  on_error=None,
                  on_result=UNDEFINED,
                  max_attempts=None,
@@ -22,7 +21,6 @@ class Retry:
                  max_delay=None,
                  wrap_error=False,
                  raise_if_bad_result=False):
-        self._name = name
         self._max_attempts = Retry._get_max_attempts(max_attempts)
         self._error_predicate = predicates.create_error_predicate(on_error)
         self._result_predicate = predicates.create_result_predicate(on_result)
@@ -43,9 +41,9 @@ class Retry:
 
         return result
 
-    @property
-    def name(self):
-        return self._name
+    @staticmethod
+    def _get_name(fn):
+        pass
 
     @property
     def metrics(self):
@@ -60,6 +58,7 @@ class Retry:
 
     # noinspection PyProtectedMember
     def execute(self, fn, *args, **kwargs):
+        name = util.get_command_name(fn)
         attempt = Attempt.try_first(fn, *args, **kwargs)
 
         while self._should_retry(attempt):
@@ -80,14 +79,14 @@ class Retry:
                 self._metrics._increment_successful_calls(attempt)
 
             if should_raise_error:
-                raise RetryError(self._name, attempt)
+                raise RetryError(name, attempt)
             else:
                 return result
         else:  # failure
             self._metrics._increment_failed_calls(attempt)
 
             if self._wrap_error:
-                raise RetryError(self._name, attempt)
+                raise RetryError(name, attempt)
             else:
                 attempt.get()  # raises the underlying error
 
@@ -191,15 +190,10 @@ class RetryMetrics:
             self.failed_calls_with_retry += 1
 
 
-def retry(func=None, name=None, on_error=None, on_result=UNDEFINED, max_attempts=None,
+def retry(func=None, on_error=None, on_result=UNDEFINED, max_attempts=None,
           backoff=None, max_delay=None, wrap_error=False, raise_if_bad_result=False):
     def decorate(fn):
-        if name is None:
-            retry_name = util.qualified_name(fn)
-        else:
-            retry_name = name
-
-        retry_instance = Retry(retry_name, on_error, on_result, max_attempts,
+        retry_instance = Retry(on_error, on_result, max_attempts,
                                backoff, max_delay, wrap_error, raise_if_bad_result)
 
         @six.wraps(fn)

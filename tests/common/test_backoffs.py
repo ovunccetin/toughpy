@@ -65,3 +65,29 @@ def test_exponential_with_random():
         for _ in range(10):
             delay = exp_backoff(attempt_no=x)
             assert base_delay + 0.3 <= delay <= base_delay + 1.2
+
+
+def test_create_backoff():
+    fn = backoffs.create_backoff(given=None)
+    assert fn.__name__ == 'fixed'
+    assert fn(attempt_no=10) == backoffs.DEFAULT_FIXED_DELAY
+
+    fn = backoffs.create_backoff(given=None, default=0.3)
+    assert fn.__name__ == 'fixed'
+    assert fn(attempt_no=10) == 0.3
+
+    fn = backoffs.create_backoff(given=None, default=backoffs.exponential(0.1))
+    assert fn.__name__ == 'exponential'
+
+    fn = backoffs.create_backoff(given=0.7)
+    assert fn.__name__ == 'fixed'
+    assert fn(attempt_no=10) == 0.7
+
+    fn = backoffs.create_backoff(given=[1, 2, 5])
+    assert fn.__name__ == 'fixed_list'
+    assert fn(attempt_no=10) == 5
+
+    def custom_delay(attempt_no): return attempt_no
+    fn = backoffs.create_backoff(given=custom_delay)
+    assert fn.__name__ == 'custom_delay'
+    assert fn(attempt_no=10) == 10

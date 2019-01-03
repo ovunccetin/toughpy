@@ -24,7 +24,7 @@ class Retry:
         self._max_attempts = Retry._get_max_attempts(max_attempts)
         self._error_predicate = predicates.create_error_predicate(on_error)
         self._result_predicate = predicates.create_result_predicate(on_result)
-        self._backoff = backoffs.create_backoff_func(backoff)
+        self._backoff = backoffs.create_backoff(backoff, Retry.DEFAULT_BACKOFF)
         self._max_delay = max_delay
         self._wrap_error = wrap_error
         self._raise_if_bad_result = raise_if_bad_result

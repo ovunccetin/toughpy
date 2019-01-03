@@ -58,7 +58,7 @@ class Retry:
 
     # noinspection PyProtectedMember
     def execute(self, fn, *args, **kwargs):
-        name = util.get_command_name(fn)
+        command_name = util.get_command_name(fn)
         attempt = Attempt.try_first(fn, *args, **kwargs)
 
         while self._should_retry(attempt):
@@ -79,14 +79,14 @@ class Retry:
                 self._metrics._increment_successful_calls(attempt)
 
             if should_raise_error:
-                raise RetryError(name, attempt)
+                raise RetryError(command_name, attempt)
             else:
                 return result
         else:  # failure
             self._metrics._increment_failed_calls(attempt)
 
             if self._wrap_error:
-                raise RetryError(name, attempt)
+                raise RetryError(command_name, attempt)
             else:
                 attempt.get()  # raises the underlying error
 
@@ -110,18 +110,6 @@ class Retry:
 
         if delay > 0:
             time.sleep(delay)
-
-    def _increment_metrics_by_attempt(self, attempt):
-        if attempt.is_failure():
-            if attempt.attempt_number == 1:
-                self._metrics.failed_calls_without_retry += 1
-            else:
-                self._metrics.failed_calls_with_retry += 1
-        else:
-            if attempt.attempt_number == 1:
-                self._metrics.successful_calls_without_retry += 1
-            else:
-                self._metrics.successful_calls_with_retry += 1
 
 
 class RetryError(Exception):

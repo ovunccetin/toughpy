@@ -1,17 +1,18 @@
-from tough import *
+import tough
+from datetime import datetime
 
 
-class retry_timeout_errors(Retry):
-    error_predicate = TimeoutError
+class retry_if_none(tough.Retry):
+    result_predicate = None
     max_attempts = 10
-    backoff = backoffs.FibonacciBackoff(0.1, 0.2)
-    wrap_error = True
+    backoff = tough.backoffs.FibonacciBackoff(0.1, 0.3)
 
 
-@retry_timeout_errors
-def raise_timeout_error():
-    print("I'm raising a TimeoutError")
-    raise TimeoutError
+@retry_if_none
+def return_none():
+    time = datetime.now().strftime('%H:%M:%S.%f')[:-3]
+    print("Returning None @{0}".format(time))
+    return None
 
 
-raise_timeout_error()
+return_none()

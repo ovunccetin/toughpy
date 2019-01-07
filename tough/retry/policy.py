@@ -104,7 +104,6 @@ class RetryPolicy:
             delay = max_delay
 
         if delay > 0:
-            print('BACKOFF = ' + str(delay))
             time.sleep(delay)
 
 

@@ -5,10 +5,11 @@ from tough.utils import *
 DEFAULT_FIXED_DELAY = 0.5
 
 _msg_invalid_backoff = '''A value of `%s` is not a valid backoff. It should be on of the followings:
- - Missing or None to set the default delay which is 500ms.
+ - None to set the default backoff which is 500ms.
+ - An instance of on of the Backoff classes (e.g. LinearBackoff, ExponentialBackoff etc.).
  - A number (int or float) to put a fixed delay in seconds (e.g. 1: 1s, 1.2: 1s and 200ms).
  - A list or tuple of numbers as a sequence of delays. (e.g. [1, 2, 5]: 1s + 2s + 5s + 5s + ...)
- - A callable (e.g. a function) taking the previous Attempt object and returning a number which is the delay in seconds.
+ - A callable which takes an attempt_number and returns a number which is the delay in seconds.
 '''
 
 
@@ -88,6 +89,15 @@ class FibonacciBackoff(FixedListBackoff):
         super().__init__(fibs)
 
 
+class _CallableBackoff(Backoff):
+
+    def __init__(self, func):
+        self._func = func
+
+    def get_delay(self, attempt_number):
+        return self._func(attempt_number)
+
+
 def create_backoff(given, default=None):
     if isinstance(given, Backoff):
         result = given
@@ -99,7 +109,7 @@ def create_backoff(given, default=None):
     elif is_list_or_tuple_of_numbers(given):
         result = FixedListBackoff(given)
     elif callable(given):
-        result = given
+        result = _CallableBackoff(given)
     else:
         raise ValueError(_msg_invalid_backoff % type(given).__name__)
 

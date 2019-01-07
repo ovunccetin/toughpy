@@ -5,7 +5,7 @@ import pytest
 import tough
 from tests.testutil import silence, assert_close_to, Timer, timeit
 from tough import retry, backoffs, RetryError
-from tough.common.utils import UNDEFINED
+from tough.utils import UNDEFINED
 
 DEFAULT_MAX_ATTEMPTS = tough.Retry.DEFAULT_MAX_ATTEMPTS
 DEFAULT_BACKOFF = tough.backoffs.DEFAULT_FIXED_DELAY

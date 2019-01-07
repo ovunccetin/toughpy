@@ -66,5 +66,6 @@ __all__ = [
     'is_list_or_set_of_exception_types',
     'is_number',
     'is_list_or_tuple_of_numbers',
-    'qualified_name'
+    'qualified_name',
+    'get_command_name'
 ]

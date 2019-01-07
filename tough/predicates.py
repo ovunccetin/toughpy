@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from .utils import *
+from tough.utils import *
 
 _msg_invalid_error_predicate = '''A value of `%s` is not valid for an error predicate. It should be one of the followings:
  - Missing or None to set to the default value (i.e. retry on any error)

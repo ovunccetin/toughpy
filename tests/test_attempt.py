@@ -1,6 +1,6 @@
 import pytest
 
-from tough.common.attempt import *
+from tough.attempt import *
 
 
 def test_successful_attempt():

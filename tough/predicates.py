@@ -12,82 +12,76 @@ _msg_invalid_error_predicate = '''A value of `%s` is not valid for an error pred
 
 
 class Predicate:
-    def __call__(self, arg):
-        return self.test(arg)
-
     @abstractmethod
     def test(self, arg): pass
 
 
 class _Always(Predicate):
-    def __init__(self, result):
-        self.result = result
-
     def test(self, arg):
-        return self.result
+        return True
 
 
-def __always_false(actual):
-    return False
+class _Never(Predicate):
+    def test(self, arg):
+        return False
 
 
-def __always_true(actual):
-    return True
+class _IsInstanceOf(Predicate):
+
+    def __init__(self, expected_type):
+        self.expected_type = expected_type
+
+    def test(self, actual):
+        return isinstance(actual, self.expected_type)
 
 
-def never():
-    return __always_false
+class _EqualTo(Predicate):
+    def __init__(self, expected_value):
+        self.expected_value = expected_value
 
-
-def always():
-    return __always_true
-
-
-def is_instance_of(expected):
-    def do_check(actual):
-        return isinstance(actual, expected)
-
-    return do_check
-
-
-def is_error(expected=None):
-    if expected is None:
-        return is_instance_of(BaseException)
-    else:
-        return is_instance_of(expected)
-
-
-def is_equal_to(expected):
-    def do_check(actual):
-        if expected is None:
+    def test(self, actual):
+        if self.expected_value is None:
             return actual is None
         else:
-            return expected == actual
-
-    return do_check
+            return self.expected_value == actual
 
 
-def create_error_predicate(given):
-    if given is None:
-        result = is_error()
-    elif is_exception_type(given) or is_tuple_of_exception_types(given):
-        result = is_error(given)
-    elif is_list_or_set_of_exception_types(given):
-        result = is_error(tuple(given))
-    elif callable(given):
-        result = given
+class _CustomPredicate(Predicate):
+    def __init__(self, func):
+        self.func = func
+
+    def test(self, arg):
+        return self.func(arg)
+
+
+__IS_ANY_ERROR = _IsInstanceOf(BaseException)
+__NEVER = _Never()
+__ALWAYS = _Always()
+
+
+def create_error_predicate(hint):
+    if hint is None:
+        result = __IS_ANY_ERROR
+    elif hint is UNDEFINED:
+        result = __ALWAYS
+    elif is_exception_type(hint) or is_tuple_of_exception_types(hint):
+        result = _IsInstanceOf(hint)
+    elif is_list_or_set_of_exception_types(hint):
+        result = _IsInstanceOf(tuple(hint))
+    elif callable(hint):
+        result = _CustomPredicate(hint)
     else:
-        raise ValueError(_msg_invalid_error_predicate % type(given).__name__)
+        raise ValueError(_msg_invalid_error_predicate % type(hint).__name__)
 
     return result
 
 
-def create_result_predicate(given):
-    if given is UNDEFINED:
-        result = never()
-    elif callable(given):
-        result = given
+def create_result_predicate(hint):
+    if hint is UNDEFINED:
+        result = __NEVER
+    elif callable(hint):
+        result = _CustomPredicate(hint)
     else:
-        result = is_equal_to(given)
+        result = _EqualTo(hint)
 
     return result

@@ -87,9 +87,9 @@ class RetryPolicy:
 
     def _should_retry(self, attempt):
         if attempt.is_failure():
-            should_retry = self._error_predicate(attempt.get_error())
+            should_retry = self._error_predicate.test(attempt.get_error())
         else:
-            should_retry = self._result_predicate(attempt.get())
+            should_retry = self._result_predicate.test(attempt.get())
 
         if should_retry:
             return self._max_attempts > attempt.attempt_number

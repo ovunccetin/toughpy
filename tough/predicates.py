@@ -34,6 +34,12 @@ class _IsInstanceOf(Predicate):
     def test(self, actual):
         return isinstance(actual, self.expected_type)
 
+    def __eq__(self, other):
+        if isinstance(other, _IsInstanceOf):
+            return self.expected_type == other.expected_type
+        else:
+            return False
+
 
 class _EqualTo(Predicate):
     def __init__(self, expected_value):
@@ -44,6 +50,12 @@ class _EqualTo(Predicate):
             return actual is None
         else:
             return self.expected_value == actual
+
+    def __eq__(self, other):
+        if isinstance(other, _EqualTo):
+            return self.expected_value == other.expected_value
+        else:
+            return False
 
 
 class _CustomPredicate(Predicate):
@@ -63,7 +75,7 @@ def create_error_predicate(hint):
     if hint is None:
         result = __IS_ANY_ERROR
     elif hint is UNDEFINED:
-        result = __ALWAYS
+        result = __NEVER
     elif is_exception_type(hint) or is_tuple_of_exception_types(hint):
         result = _IsInstanceOf(hint)
     elif is_list_or_set_of_exception_types(hint):

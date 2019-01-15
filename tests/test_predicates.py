@@ -1,3 +1,5 @@
+import pytest
+
 import tough.predicates as predicates
 from tough.predicates import create_error_predicate, create_result_predicate
 from tough.utils import UNDEFINED
@@ -42,14 +44,17 @@ def test_custom_predicate():
 
 
 def test_create_error_predicate():
-    assert create_error_predicate(None) == predicates.__IS_ANY_ERROR
-    assert create_error_predicate(UNDEFINED) == predicates.__NEVER
-    assert create_error_predicate(ValueError) == predicates._IsInstanceOf(ValueError)
-    assert create_error_predicate([KeyError, ValueError]) == predicates._IsInstanceOf((KeyError, ValueError))
+    assert predicates.__IS_ANY_ERROR == create_error_predicate(None)
+    assert predicates.__NEVER == create_error_predicate(UNDEFINED)
+    assert predicates._IsInstanceOf(ValueError) == create_error_predicate(ValueError)
+    assert predicates._IsInstanceOf((KeyError, ValueError)) == create_error_predicate([KeyError, ValueError])
     assert isinstance(create_error_predicate(lambda: False), predicates._CustomPredicate)
+
+    with pytest.raises(ValueError):
+        create_error_predicate(10)
 
 
 def test_create_result_predicate():
-    assert create_result_predicate(UNDEFINED) == predicates.__NEVER
+    assert predicates.__NEVER == create_result_predicate(UNDEFINED)
     assert isinstance(create_result_predicate(lambda: False), predicates._CustomPredicate)
-    assert create_result_predicate(5) == predicates._EqualTo(5)
+    assert predicates._EqualTo(5) == create_result_predicate(5)

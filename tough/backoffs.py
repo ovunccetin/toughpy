@@ -2,24 +2,30 @@ import random as r
 from abc import abstractmethod
 from tough.utils import *
 
-DEFAULT_FIXED_DELAY = 0.5
-
 _msg_invalid_backoff = '''A value of `%s` is not a valid backoff. It should be on of the followings:
- - None to set the default backoff which is 500ms.
- - An instance of on of the Backoff classes (e.g. LinearBackoff, ExponentialBackoff etc.).
- - A number (int or float) to put a fixed delay in seconds (e.g. 1: 1s, 1.2: 1s and 200ms).
- - A list or tuple of numbers as a sequence of delays. (e.g. [1, 2, 5]: 1s + 2s + 5s + 5s + ...)
+ - None to set to the default backoff which is 500ms.
+ - An instance of one of the Backoff classes (e.g. LinearBackoff, ExponentialBackoff etc.).
+ - A number (int or float) to put a fixed backoff delay in seconds (e.g. 1 for 1s, 1.2 for 1s and 200ms).
+ - A list or tuple of numbers as a sequence of delays. (e.g. [1, 2, 5] means 1s + 2s + 5s + 5s + ...)
  - A callable which takes an attempt_number and returns a number which is the delay in seconds.
 '''
 
 
 class Backoff:
 
+    @staticmethod
+    @abstractmethod
+    def create_default(): pass
+
     @abstractmethod
     def get_delay(self, attempt_number): pass
 
 
 class FixedBackoff(Backoff):
+
+    @staticmethod
+    def create_default():
+        return FixedBackoff(0.5)
 
     def __init__(self, delay):
         self.delay = delay
@@ -29,6 +35,10 @@ class FixedBackoff(Backoff):
 
 
 class FixedListBackoff(Backoff):
+
+    @staticmethod
+    def create_default():
+        return FixedListBackoff([0.5, 1, 1.5])
 
     def __init__(self, delay_list):
         self.delays = delay_list
@@ -45,6 +55,10 @@ class FixedListBackoff(Backoff):
 
 class RandomBackoff(Backoff):
 
+    @staticmethod
+    def create_default():
+        return RandomBackoff(0.5, 3.0)
+
     def __init__(self, min_seconds, max_seconds):
         self.min_seconds = min_seconds
         self.max_seconds = max_seconds
@@ -59,6 +73,10 @@ class RandomBackoff(Backoff):
 
 class LinearBackoff(Backoff):
 
+    @staticmethod
+    def create_default():
+        return LinearBackoff(initial_delay=0.5, increase=0.5)
+
     def __init__(self, initial_delay, increase, randomizer=None):
         self.initial_delay = initial_delay
         self.increase = increase
@@ -69,6 +87,10 @@ class LinearBackoff(Backoff):
 
 
 class ExponentialBackoff(Backoff):
+
+    @staticmethod
+    def create_default():
+        return ExponentialBackoff(initial_delay=0.5, base=2)
 
     def __init__(self, initial_delay, base=2, randomizer=None):
         self.initial_delay = initial_delay
@@ -81,6 +103,10 @@ class ExponentialBackoff(Backoff):
 
 class FibonacciBackoff(FixedListBackoff):
 
+    @staticmethod
+    def create_default():
+        return FibonacciBackoff(first=0.5, second=1.0)
+
     def __init__(self, first, second, n_max=16):
         fibs = [first, second]
         for i in range(2, n_max + 1):
@@ -91,6 +117,10 @@ class FibonacciBackoff(FixedListBackoff):
 
 class _CallableBackoff(Backoff):
 
+    @staticmethod
+    def create_default():
+        raise ValueError("No default backoff")
+
     def __init__(self, func):
         self._func = func
 
@@ -98,12 +128,13 @@ class _CallableBackoff(Backoff):
         return self._func(attempt_number)
 
 
-def create_backoff(given, default=None):
+def create_backoff(given):
     if isinstance(given, Backoff):
         result = given
+    elif isinstance(given, type) and issubclass(given, Backoff):
+        result = given.create_default()
     elif given is None:
-        default_delay = DEFAULT_FIXED_DELAY if default is None else default
-        result = create_backoff(given=default_delay)
+        result = create_backoff(0.5)
     elif is_number(given):
         result = FixedBackoff(given)
     elif is_list_or_tuple_of_numbers(given):
@@ -142,6 +173,5 @@ __all__ = [
     'LinearBackoff',
     'RandomBackoff',
     'ExponentialBackoff',
-    'FibonacciBackoff',
-    'DEFAULT_FIXED_DELAY'
+    'FibonacciBackoff'
 ]

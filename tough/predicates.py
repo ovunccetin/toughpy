@@ -2,16 +2,19 @@ from abc import abstractmethod
 from tough.utils import *
 
 _msg_invalid_error_predicate = '''A value of `%s` is not valid for an error predicate. It should be one of the followings:
- - Missing or None to set to the default value (i.e. retry on any error)
- - An error type, e.g. ConnectionError
- - A tuple of error types, e.g. (ConnectionError, TimeoutError)
- - A list of error types, e.g. [ConnectionError, TimeoutError]
- - A set of error types, e.g. {ConnectionError, TimeoutError}
- - A callable (e.g. a function) taking the result of the previous call and returning a boolean.
+ - None to set to the default predicate (i.e. retry on any error type)
+ - An error type, e.g. ConnectionError.
+ - A tuple of error types, e.g. (ConnectionError, TimeoutError).
+ - A list of error types, e.g. [ConnectionError, TimeoutError].
+ - A set of error types, e.g. {ConnectionError, TimeoutError}.
+ - A callable taking an argument and returning a boolean.
 '''
 
 
 class Predicate:
+    def __call__(self, arg):
+        return self.test(arg)
+
     @abstractmethod
     def test(self, arg): pass
 
@@ -31,8 +34,8 @@ class _IsInstanceOf(Predicate):
     def __init__(self, expected_type):
         self.expected_type = expected_type
 
-    def test(self, actual):
-        return isinstance(actual, self.expected_type)
+    def test(self, arg):
+        return isinstance(arg, self.expected_type)
 
     def __eq__(self, other):
         if isinstance(other, _IsInstanceOf):
@@ -45,11 +48,11 @@ class _EqualTo(Predicate):
     def __init__(self, expected_value):
         self.expected_value = expected_value
 
-    def test(self, actual):
+    def test(self, arg):
         if self.expected_value is None:
-            return actual is None
+            return arg is None
         else:
-            return self.expected_value == actual
+            return self.expected_value == arg
 
     def __eq__(self, other):
         if isinstance(other, _EqualTo):
@@ -60,10 +63,10 @@ class _EqualTo(Predicate):
 
 class _CustomPredicate(Predicate):
     def __init__(self, func):
-        self.func = func
+        self._func = func
 
     def test(self, arg):
-        return self.func(arg)
+        return self._func.__call__(arg)
 
 
 __IS_ANY_ERROR = _IsInstanceOf(BaseException)
@@ -72,7 +75,9 @@ __ALWAYS = _Always()
 
 
 def create_error_predicate(hint):
-    if hint is None:
+    if isinstance(hint, Predicate):
+        result = hint
+    elif hint is None:
         result = __IS_ANY_ERROR
     elif hint is UNDEFINED:
         result = __NEVER

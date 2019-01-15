@@ -49,7 +49,7 @@ def get_command_name(fn):
     if hasattr(fn, '__command_name__'):
         cmd_name = fn.__command_name__
     else:
-        cmd_name = fn.__name__
+        cmd_name = qualified_name(fn)
 
     return cmd_name
 

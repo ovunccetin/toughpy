@@ -6,8 +6,9 @@ import time
 def silence():
     try:
         yield
-    except:
+    except BaseException:
         pass
+
 
 class Timer:
     def __enter__(self):
@@ -17,6 +18,7 @@ class Timer:
     def __exit__(self, *args):
         self.end = time.time()
         self.elapsed = self.end - self.start
+
 
 def timeit(fn):
     start = time.time()

@@ -79,27 +79,38 @@ def test_fibonacci_backoff():
 
 
 def test_create_backoff():
-    fn = backoffs.create_backoff(given=None)
-    assert fn.__name__ == 'fixed'
-    assert fn(attempt_no=10) == backoffs.DEFAULT_FIXED_DELAY
+    backoff = backoffs.create_backoff(given=None)
+    assert isinstance(backoff, backoffs.FixedBackoff)
+    assert backoff.get_delay(attempt_number=10) == 0.5
 
-    fn = backoffs.create_backoff(given=None, default=0.3)
-    assert fn.__name__ == 'fixed'
-    assert fn(attempt_no=10) == 0.3
+    backoff = backoffs.create_backoff(given=0.3)
+    assert isinstance(backoff, backoffs.FixedBackoff)
+    assert backoff.get_delay(attempt_number=10) == 0.3
 
-    fn = backoffs.create_backoff(given=None, default=backoffs.exponential(0.1))
-    assert fn.__name__ == 'exponential'
+    backoff = backoffs.create_backoff(given=[1, 2, 5])
+    assert isinstance(backoff, backoffs.FixedListBackoff)
+    assert backoff.get_delay(attempt_number=10) == 5
 
-    fn = backoffs.create_backoff(given=0.7)
-    assert fn.__name__ == 'fixed'
-    assert fn(attempt_no=10) == 0.7
+    backoff = backoffs.create_backoff(given=backoffs.FixedBackoff)
+    assert isinstance(backoff, backoffs.FixedBackoff)
 
-    fn = backoffs.create_backoff(given=[1, 2, 5])
-    assert fn.__name__ == 'fixed_list'
-    assert fn(attempt_no=10) == 5
+    backoff = backoffs.create_backoff(given=backoffs.FixedListBackoff)
+    assert isinstance(backoff, backoffs.FixedListBackoff)
+
+    backoff = backoffs.create_backoff(given=backoffs.RandomBackoff)
+    assert isinstance(backoff, backoffs.RandomBackoff)
+
+    backoff = backoffs.create_backoff(given=backoffs.LinearBackoff)
+    assert isinstance(backoff, backoffs.LinearBackoff)
+
+    backoff = backoffs.create_backoff(given=backoffs.ExponentialBackoff)
+    assert isinstance(backoff, backoffs.ExponentialBackoff)
+
+    backoff = backoffs.create_backoff(given=backoffs.FibonacciBackoff)
+    assert isinstance(backoff, backoffs.FibonacciBackoff)
 
     def custom_delay(attempt_no): return attempt_no
 
-    fn = backoffs.create_backoff(given=custom_delay)
-    assert fn.__name__ == 'custom_delay'
-    assert fn(attempt_no=10) == 10
+    backoff = backoffs.create_backoff(given=custom_delay)
+    assert isinstance(backoff, backoffs._CallableBackoff)
+    assert backoff.get_delay(attempt_number=10) == 10

@@ -11,7 +11,7 @@ def is_positive(x):
     return x > 0
 
 
-# A custom decorator to retry if the returned value is negative
+# A custom decorator of which configuration is fixed at creation.
 retry_if_negative = Retry(on_result=is_negative, max_attempts=5, backoff=LinearBackoff(1, 0.5))
 
 
@@ -26,7 +26,7 @@ print('Mostly Negative')
 mostly_negative()
 
 
-# Another decorator which takes the max number of retries as a function parameter
+# A custom decorator which takes the max number of retries as a function parameter.
 def retry_if_positive(max_retries):
     return Retry(on_result=is_positive, backoff=ExponentialBackoff(0.5), max_attempts=max_retries + 1)
 

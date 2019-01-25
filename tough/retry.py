@@ -1,5 +1,6 @@
 import six
 import time
+import tough.metrics as metrics
 from tough.utils import UNDEFINED, get_command_name
 from tough import predicates, backoffs
 from tough.attempt import Attempt
@@ -26,7 +27,6 @@ class Retry:
         self._max_delay = max_delay
         self._wrap_error = wrap_error
         self._raise_if_bad_result = raise_if_bad_result
-        self._metrics = RetryMetrics()
 
     @staticmethod
     def _get_max_attempts(given):
@@ -48,31 +48,33 @@ class Retry:
 
     # noinspection PyProtectedMember
     def execute(self, fn, *args, **kwargs):
+        command_name = get_command_name(fn)
+        retry_metrics = metrics.retry_metrics[command_name]
         attempt = Attempt.try_first(fn, *args, **kwargs)
 
         while self._should_retry(attempt):
-            self._metrics.total_retry_attempts += 1
+            retry_metrics.total_retry_attempts += 1
             attempt_number = attempt.attempt_number
             self._exec_backoff(attempt_number)
             attempt = attempt.try_next(fn, *args, **kwargs)
 
-        self._metrics.total_calls += 1
+        retry_metrics.total_calls += 1
 
         if attempt.is_success():  # success
             result = attempt.get()
             should_raise_error = self._raise_if_bad_result and self._result_predicate.test(result)
 
             if should_raise_error:
-                self._metrics._increment_failed_calls(attempt)
+                retry_metrics._increment_failed_calls(attempt)
             else:
-                self._metrics._increment_successful_calls(attempt)
+                retry_metrics._increment_successful_calls(attempt)
 
             if should_raise_error:
                 raise RetryError(fn, attempt)
             else:
                 return result
         else:  # failure
-            self._metrics._increment_failed_calls(attempt)
+            retry_metrics._increment_failed_calls(attempt)
 
             if self._wrap_error:
                 raise RetryError(fn, attempt)
@@ -139,51 +141,6 @@ class RetryError(Exception):
                 self.last_attempt.attempt_number,
                 self.last_attempt
             )
-
-
-class RetryMetrics:
-    def __init__(self):
-        self.successful_calls_without_retry = 0
-        self.successful_calls_with_retry = 0
-        self.failed_calls_without_retry = 0
-        self.failed_calls_with_retry = 0
-        self.total_calls = 0
-        self.total_retry_attempts = 0
-
-    @property
-    def retry_attempts_per_call(self):
-        return float(self.total_retry_attempts) / self.total_calls
-
-    @property
-    def ratio_of_successful_calls_without_retry(self):
-        return self._ratio_of(self.successful_calls_without_retry)
-
-    @property
-    def ratio_of_successful_calls_with_retry(self):
-        return self._ratio_of(self.successful_calls_with_retry)
-
-    @property
-    def ratio_of_failed_calls_without_retry(self):
-        return self._ratio_of(self.failed_calls_without_retry)
-
-    @property
-    def ratio_of_failed_calls_with_retry(self):
-        return self._ratio_of(self.failed_calls_with_retry)
-
-    def _ratio_of(self, value):
-        return float(value) / self.total_calls
-
-    def _increment_successful_calls(self, attempt):
-        if attempt.attempt_number == 1:
-            self.successful_calls_without_retry += 1
-        else:
-            self.successful_calls_with_retry += 1
-
-    def _increment_failed_calls(self, attempt):
-        if attempt.attempt_number == 1:
-            self.failed_calls_without_retry += 1
-        else:
-            self.failed_calls_with_retry += 1
 
 
 __all__ = [

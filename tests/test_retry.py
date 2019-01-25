@@ -1,7 +1,7 @@
 from tough.retry import *
 import random as rnd
 import pytest
-from tests.testutil import assert_close_to, timeit, Timer
+from tests.testutil import assert_close_to, timeit
 from tough.utils import UNDEFINED
 
 ERROR_TYPES = [TimeoutError, ConnectionError, OSError, ValueError, KeyError, BaseException, Exception]
@@ -149,7 +149,7 @@ class TestOutcome(BaseRetryTest):
 
 
 class TestCustomDecorator(BaseRetryTest):
-    def test_a_custom_retry_decorator(self):
+    def test_a_custom_fixed_decorator(self):
         custom_retry = Retry(on_result=is_negative, max_attempts=5, backoff=0)
 
         @custom_retry
@@ -159,3 +159,15 @@ class TestCustomDecorator(BaseRetryTest):
         return_negatives()
 
         assert 5 == self.invocations
+
+    def test_a_parameterized_decorator(self):
+        def custom_retry(max_retries):
+            return Retry(on_result=None, max_attempts=max_retries + 1, backoff=0)
+
+        @custom_retry(max_retries=3)
+        def return_none():
+            return self.return_(None)()
+
+        return_none()
+
+        assert 4 == self.invocations

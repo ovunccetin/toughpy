@@ -1,3 +1,5 @@
+import six
+
 _list_or_set = (list, set)
 _list_or_tuple = (list, tuple)
 _numeric_types = (int, float)
@@ -54,6 +56,14 @@ def get_command_name(fn):
     return cmd_name
 
 
+def command(name):
+    def decorate(func):
+        func.__command_name__ = name
+        return func
+
+    return decorate
+
+
 class StateError(ValueError):
     """An analogue to Java's IllegalStateException"""
     pass
@@ -61,6 +71,7 @@ class StateError(ValueError):
 
 __all__ = [
     'UNDEFINED',
+    'command',
     'is_exception_type',
     'is_tuple_of_exception_types',
     'is_list_or_set_of_exception_types',

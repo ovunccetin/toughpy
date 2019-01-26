@@ -28,3 +28,10 @@ def function():
 
 
 function()
+
+# SAMPLE OUTPUT
+
+# Attempt #1 at 2019-01-26 00:15:47.237935
+# Attempt #2 at 2019-01-26 00:15:47.542465 (+0.3s)
+# Attempt #3 at 2019-01-26 00:15:48.047214 (+0.5s)
+# Attempt #4 at 2019-01-26 00:15:48.750627 (+0.7s)

@@ -7,7 +7,7 @@ setup(
     author_email='ovunccetin@gmail.com',
     description='A fault tolerance library designed for Python.',
     license='Apache',
-    packages=['tough'],
+    packages=['toughpy'],
     extras_require={
         'dev': [
             'pytest>=3'

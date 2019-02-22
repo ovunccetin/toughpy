@@ -1,8 +1,8 @@
-from tough.retry import *
+from toughpy.retry import *
 import random as rnd
 import pytest
 from tests.testutil import assert_close_to, timeit
-from tough.utils import UNDEFINED
+from toughpy.utils import UNDEFINED
 
 ERROR_TYPES = [TimeoutError, ConnectionError, OSError, ValueError, KeyError, BaseException, Exception]
 DEFAULT_BACKOFF = 0.5

@@ -1,5 +1,5 @@
 from datetime import datetime
-from tough import *
+from toughpy import *
 
 attempts = 0
 

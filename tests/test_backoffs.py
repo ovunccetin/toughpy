@@ -1,4 +1,4 @@
-import tough.backoffs as backoffs
+import toughpy.backoffs as backoffs
 
 
 def test_fixed_backoff():

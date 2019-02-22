@@ -1,8 +1,8 @@
 import pytest
 
-import tough.predicates as predicates
-from tough.predicates import create_error_predicate, create_result_predicate
-from tough.utils import UNDEFINED
+import toughpy.predicates as predicates
+from toughpy.predicates import create_error_predicate, create_result_predicate
+from toughpy.utils import UNDEFINED
 
 an_error = BaseException('Test Error')
 a_value = "test_value"

@@ -1,9 +1,9 @@
 import six
 import time
-import tough.metrics as metrics
-from tough.utils import UNDEFINED, get_command_name
-from tough import predicates, backoffs
-from tough.attempt import Attempt
+import toughpy.metrics as metrics
+from toughpy.utils import UNDEFINED, get_command_name
+from toughpy import predicates, backoffs
+from toughpy.attempt import Attempt
 
 _msg_invalid_max_attempts = '`%s` is not a valid value for `max_attempts`. It should be an integer greater than 0.'
 

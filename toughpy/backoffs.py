@@ -1,6 +1,6 @@
 import random as r
 from abc import abstractmethod
-from tough.utils import *
+from toughpy.utils import *
 
 _msg_invalid_backoff = '''A value of `%s` is not a valid backoff. It should be on of the followings:
  - None to set to the default backoff which is 500ms.

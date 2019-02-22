@@ -1,4 +1,4 @@
-from tough import *
+from toughpy import *
 from datetime import datetime
 import time as t
 

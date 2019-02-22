@@ -1,5 +1,3 @@
-import six
-
 _list_or_set = (list, set)
 _list_or_tuple = (list, tuple)
 _numeric_types = (int, float)

@@ -1,5 +1,5 @@
-from tough import metrics, command
-from tough.retry import retry
+from toughpy import metrics, command
+from toughpy.retry import retry
 import pytest
 from .testutil import silence
 

@@ -54,8 +54,7 @@ class Retry:
 
         while self._should_retry(attempt):
             retry_metrics.total_retry_attempts += 1
-            attempt_number = attempt.attempt_number
-            self._exec_backoff(attempt_number)
+            self._exec_backoff(attempt)
             attempt = attempt.try_next(fn, *args, **kwargs)
 
         retry_metrics.total_calls += 1
@@ -92,8 +91,8 @@ class Retry:
         else:
             return False
 
-    def _exec_backoff(self, attempt_number):
-        delay = self._backoff.get_delay(attempt_number)
+    def _exec_backoff(self, attempt):
+        delay = self._backoff.get_delay(attempt)
         max_delay = self._max_delay
 
         if max_delay and delay > max_delay:

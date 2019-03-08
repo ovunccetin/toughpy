@@ -18,7 +18,15 @@ class Backoff:
     def create_default(): pass
 
     @abstractmethod
-    def get_delay(self, attempt_number): pass
+    def get_delay(self, attempt):
+        """
+        Calculates the delay between the given attempt and the next.
+        Args:
+            attempt (toughpy.Attempt): The previous execution attempt.
+        Returns:
+            float: The delay in seconds
+        """
+        pass
 
 
 class FixedBackoff(Backoff):
@@ -30,7 +38,7 @@ class FixedBackoff(Backoff):
     def __init__(self, delay):
         self.delay = delay
 
-    def get_delay(self, attempt_number):
+    def get_delay(self, attempt):
         return self.delay
 
 
@@ -43,10 +51,11 @@ class FixedListBackoff(Backoff):
     def __init__(self, delay_list):
         self.delays = delay_list
 
-    def get_delay(self, attempt_number):
+    def get_delay(self, attempt):
         size = len(self.delays)
-        if attempt_number - 1 < size:
-            idx = attempt_number - 1
+        attempt_no = attempt.attempt_number
+        if attempt_no - 1 < size:
+            idx = attempt_no - 1
         else:
             idx = size - 1
 
@@ -63,7 +72,7 @@ class RandomBackoff(Backoff):
         self.min_seconds = min_seconds
         self.max_seconds = max_seconds
 
-    def get_delay(self, attempt_number=None):
+    def get_delay(self, attempt=None):
         lower_bound = int(self.min_seconds * 1000)
         upper_bound = int(self.max_seconds * 1000)
 
@@ -82,8 +91,9 @@ class LinearBackoff(Backoff):
         self.increase = increase
         self.randomizer = _get_randomizer_func(randomizer)
 
-    def get_delay(self, attempt_number):
-        return self.initial_delay + self.increase * (attempt_number - 1) + self.randomizer()
+    def get_delay(self, attempt):
+        attempt_no = attempt.attempt_number
+        return self.initial_delay + self.increase * (attempt_no - 1) + self.randomizer()
 
 
 class ExponentialBackoff(Backoff):
@@ -97,8 +107,9 @@ class ExponentialBackoff(Backoff):
         self.base = base
         self.randomizer = _get_randomizer_func(randomizer)
 
-    def get_delay(self, attempt_number):
-        return self.initial_delay * self.base ** (attempt_number - 1) + self.randomizer()
+    def get_delay(self, attempt):
+        attempt_no = attempt.attempt_number
+        return self.initial_delay * self.base ** (attempt_no - 1) + self.randomizer()
 
 
 class FibonacciBackoff(FixedListBackoff):
@@ -124,8 +135,8 @@ class _CallableBackoff(Backoff):
     def __init__(self, func):
         self._func = func
 
-    def get_delay(self, attempt_number):
-        return self._func(attempt_number)
+    def get_delay(self, attempt):
+        return self._func(attempt)
 
 
 def create_backoff(given):

@@ -171,3 +171,18 @@ class TestCustomDecorator(BaseRetryTest):
         return_none()
 
         assert 4 == self.invocations
+
+
+class TestAfterEachAttemptHook(BaseRetryTest):
+    _handler_counter = 0
+
+    def test_handler_running_after_each_attempt(self):
+        with pytest.raises(BaseException):
+            Retry(max_attempts=5, backoff=0)\
+                .after_each_attempt(self._handler)\
+                .execute(self.fail_())
+
+        assert self._handler_counter == 5
+
+    def _handler(self, attempt):
+        self._handler_counter += 1

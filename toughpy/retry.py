@@ -27,6 +27,7 @@ class Retry:
         self._max_delay = max_delay
         self._wrap_error = wrap_error
         self._raise_if_bad_result = raise_if_bad_result
+        self._after_attempt_handler = None
 
     @staticmethod
     def _get_max_attempts(given):
@@ -46,16 +47,22 @@ class Retry:
 
         return decorator
 
+    def after_each_attempt(self, handler):
+        self._after_attempt_handler = handler
+        return self
+
     # noinspection PyProtectedMember
     def execute(self, fn, *args, **kwargs):
         command_name = get_command_name(fn)
         retry_metrics = metrics.retry_metrics[command_name]
         attempt = Attempt.try_first(fn, *args, **kwargs)
+        self._emit_after_attempt(attempt)
 
         while self._should_retry(attempt):
             retry_metrics.total_retry_attempts += 1
             self._exec_backoff(attempt)
             attempt = attempt.try_next(fn, *args, **kwargs)
+            self._emit_after_attempt(attempt)
 
         retry_metrics.total_calls += 1
 
@@ -100,6 +107,10 @@ class Retry:
 
         if delay > 0:
             time.sleep(delay)
+
+    def _emit_after_attempt(self, attempt):
+        if callable(self._after_attempt_handler):
+            self._after_attempt_handler(attempt)
 
 
 def retry(func=None, on_error=None, on_result=UNDEFINED, max_attempts=None,
